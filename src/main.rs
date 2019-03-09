@@ -8,6 +8,8 @@ use std::net::ToSocketAddrs;
 use std::str::FromStr;
 use std::time::Duration;
 
+const WHOIS_HOST: &'static str = "whois.radb.net:43";
+
 #[derive(Debug, PartialEq)]
 pub enum Reply {
     A(String),
@@ -23,23 +25,23 @@ fn read_reply<R: BufRead>(input: &mut R) -> Result<Reply, io::Error> {
     match buf.get(0) {
         Some(b'A') => {
             let decimal_length = std::str::from_utf8(&buf[1..buf.len() - 1])
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;;
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;;
             let alen: usize = decimal_length
                 .parse()
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
             buf.resize(alen, 0);
             input.read_exact(&mut buf)?;
             let content = String::from_utf8(buf.clone())
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
             Ok(Reply::A(content))
         }
         Some(b'C') => Ok(Reply::C),
         Some(b'D') => Ok(Reply::D),
         Some(code) => Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
+            io::ErrorKind::InvalidData,
             format!("unknown code {}", code),
         )),
-        None => Err(io::Error::new(io::ErrorKind::InvalidInput, "empty reply")),
+        None => Err(io::Error::new(io::ErrorKind::UnexpectedEof, "empty reply")),
     }
 }
 
@@ -47,9 +49,9 @@ fn parse_autnum(input: &str) -> io::Result<u32> {
     if input.starts_with("AS") {
         input[2..]
             .parse()
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     } else {
-        Err(io::Error::new(io::ErrorKind::InvalidInput, input))
+        Err(io::Error::new(io::ErrorKind::InvalidData, input))
     }
 }
 
@@ -60,7 +62,7 @@ fn parse_prefix(input: &str) -> io::Result<Prefix> {
             return Ok((ip, masklen));
         }
     }
-    Err(io::Error::new(io::ErrorKind::InvalidInput, input))
+    Err(io::Error::new(io::ErrorKind::InvalidData, input))
 }
 
 fn resolve_as_sets(
@@ -159,7 +161,7 @@ fn main() -> io::Result<()> {
         };
     }
 
-    let sock_addr = "whois.radb.net:43".to_socket_addrs()?.next().unwrap();
+    let sock_addr = WHOIS_HOST.to_socket_addrs()?.next().unwrap();
     let mut conn = TcpStream::connect_timeout(&sock_addr, Duration::from_secs(30))?;
     conn.write_all(b"!!\n")?;
 
