@@ -68,7 +68,7 @@ fn resolve_as_sets(
     sets: &HashSet<String>,
 ) -> io::Result<HashMap<String, Vec<u32>>> {
     //let mut query = format!("!i{},1\n", q);
-    let mut ret = HashMap::new();
+    let mut ret: HashMap<String, Vec<u32>> = HashMap::new();
     let mut query = String::new();
     for set in sets.iter() {
         writeln!(&mut query, "!i{},1", set).unwrap();
@@ -77,10 +77,12 @@ fn resolve_as_sets(
 
     let mut bufreader = io::BufReader::new(conn);
     for set in sets.iter() {
+        let autnums = ret.entry(set.to_string()).or_insert_with(|| vec![]);
         while let Reply::A(reply) = read_reply(&mut bufreader)? {
-            let autnums: io::Result<Vec<u32>> =
-                reply.split_whitespace().map(|s| parse_autnum(s)).collect();
-            ret.insert(set.to_string(), autnums?);
+            for autnum in reply.split_whitespace().map(|s| parse_autnum(s)) {
+                let autnum = autnum?;
+                autnums.push(autnum);
+            }
         }
     }
     Ok(ret)
@@ -101,10 +103,15 @@ fn resolve_autnums(
 
     for autnum in autnums.iter() {
         let prefixlist = ret.entry(*autnum).or_insert_with(|| vec![]);
-        for _family in &[4, 6] {
+        for family in &[4, 6] {
             while let Reply::A(reply) = read_reply(&mut bufreader)? {
                 for elem in reply.split_whitespace() {
                     let prefix = parse_prefix(elem)?;
+                    if family == &4 {
+                        assert!(prefix.0.is_ipv4());
+                    } else {
+                        assert!(prefix.0.is_ipv6());
+                    }
                     prefixlist.push(prefix);
                 }
             }
@@ -124,10 +131,10 @@ impl FromStr for Query {
     type Err = io::Error;
     fn from_str(s: &str) -> io::Result<Query> {
         if s.starts_with("AS") {
-            if s.starts_with("AS-") {
-                Ok(Query::AsSet(s.to_string()))
+            if let Ok(autnum) = parse_autnum(s) {
+                Ok(Query::Autnum(autnum))
             } else {
-                Ok(Query::Autnum(parse_autnum(s)?))
+                Ok(Query::AsSet(s.to_string()))
             }
         } else {
             Err(io::Error::new(io::ErrorKind::InvalidInput, s))
