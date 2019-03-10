@@ -6,7 +6,6 @@ use std::net::TcpStream;
 use std::str::FromStr;
 use std::time::Duration;
 
-
 mod aggregate;
 use aggregate::*;
 
@@ -16,7 +15,6 @@ use radb::*;
 const WHOIS_HOST: &str = "whois.radb.net:43";
 
 pub type Prefix = (IpAddr, u8);
-
 
 #[derive(PartialEq, Eq, Hash)]
 enum Query {

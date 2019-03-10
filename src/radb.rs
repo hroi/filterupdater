@@ -22,7 +22,7 @@ impl RadbClient {
 
     pub fn open<S: ToSocketAddrs>(target: S) -> io::Result<Self> {
         let mut err: io::Error = io::Error::new(io::ErrorKind::Other, "unreachable");
-        for sock_addr in target.to_socket_addrs()?{
+        for sock_addr in target.to_socket_addrs()? {
             match TcpStream::connect_timeout(&sock_addr, Duration::from_secs(30)) {
                 Ok(conn) => {
                     let mut client = RadbClient {
