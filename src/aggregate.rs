@@ -83,33 +83,31 @@ impl FromStr for Entry {
 use std::cmp::{max, min};
 
 fn touching(this: &Entry, that: &Entry) -> bool {
+    let wildcard_bits = 32 - u32::from(this.mask);
     match (this.prefix, that.prefix) {
         (IpAddr::V4(a), IpAddr::V4(b)) => {
             let ua = u32::from(a);
             let ub = u32::from(b);
-            let wildcard_bits = 32 - this.mask as u32;
-            let next_prefix = ((ua >> wildcard_bits) + 1) << wildcard_bits;
-            (ua ^ ub) == (1 << 31) >> (u32::from(this.mask) - 1) // overlap
-                || ub == next_prefix
+            let next_prefix = ua + (1 << wildcard_bits);
+            ub <= next_prefix
         }
 
         (IpAddr::V6(a), IpAddr::V6(b)) => {
             let ua = u128::from(a);
             let ub = u128::from(b);
-            let wildcard_bits = 128 - this.mask as u32;
-            let next_prefix = ((ua >> wildcard_bits) + 1) << wildcard_bits;
-            (ua ^ ub) == (1 << 127) >> (u32::from(this.mask) - 1) || ub == next_prefix
+            let next_prefix = ua + (1 << wildcard_bits);
+            ub <= next_prefix
         }
         _ => false,
     }
 }
 
 fn level_up(this: &mut Vec<Entry>, next: &mut Vec<Entry>) {
-    this.sort();
-    let mut this = &mut this[..];
     let mut did_change = true;
     while did_change {
         did_change = false;
+        this.sort();
+        let mut this = &mut this[..];
         while this.len() >= 2 {
             let (a, rest) = this.split_first_mut().unwrap();
             this = rest;
@@ -128,7 +126,9 @@ fn level_up(this: &mut Vec<Entry>, next: &mut Vec<Entry>) {
                     continue;
                 }
                 if (a.prefix, a.mask, a.min + 1) == (b.prefix, b.mask, b.min)
-                    || (a.prefix, a.mask, a.max + 1) == (b.prefix, b.mask, b.min)
+                    // || (a.prefix, a.mask, a.min - 1) == (b.prefix, b.mask, b.min)
+                    // || (a.prefix, a.mask, a.max + 1) == (b.prefix, b.mask, b.min)
+                    // || (a.prefix, a.mask, a.max - 1) == (b.prefix, b.mask, b.max)
                 {
                     a.min = min(a.min, b.min);
                     a.max = max(a.max, b.max);
@@ -152,8 +152,8 @@ pub fn aggregate(prefixes: &[&Prefix]) -> Vec<Entry> {
     for prefix in prefixes.iter() {
         levels[prefix.mask as usize].push(prefix.clone());
     }
-    use std::mem;
     for cur in (1..=128).rev() {
+        use std::mem;
         let mut this = mem::replace(&mut levels[cur], vec![]);
         let mut next = mem::replace(&mut levels[cur - 1], vec![]);
 
