@@ -11,7 +11,7 @@ use std::time::Duration;
 mod aggregate;
 use aggregate::*;
 
-const WHOIS_HOST: &'static str = "whois.radb.net:43";
+const WHOIS_HOST: &str = "whois.radb.net:43";
 
 #[derive(Debug, PartialEq)]
 pub enum Reply {
@@ -164,9 +164,6 @@ fn main() -> io::Result<()> {
         let query: Query = arg.parse()?;
         queries.insert(query);
     }
-        // .map(|arg| arg.parse::<Query>())
-        // .collect();
-    //let queries = queries?;
 
     for q in queries.iter() {
         match q {

@@ -16,10 +16,10 @@ impl Entry {
     fn can_level_up_with(&self, other: &Self) -> bool {
         let overlaps = match (self.prefix, other.prefix) {
             (IpAddr::V4(a), IpAddr::V4(b)) => {
-                (u32::from(a) ^ u32::from(b)) == (1<<31) >> (self.mask as u32 - 1)
+                (u32::from(a) ^ u32::from(b)) == (1<<31) >> (u32::from(self.mask) - 1)
             }
             (IpAddr::V6(a), IpAddr::V6(b)) => {
-                (u128::from(a) ^ u128::from(b)) == (1<<127) >> (self.mask as u32 - 1)
+                (u128::from(a) ^ u128::from(b)) == (1<<127) >> (u32::from(self.mask) - 1)
             }
             _ => false
         };
@@ -128,13 +128,10 @@ pub fn aggregate(prefixes: &[&Prefix]) -> Vec<Entry> {
     }
     let mut filter = Vec::new();
     for (_level, entries) in levels.iter().enumerate().rev() {
-        if entries.len() > 0 {
-            //print!("{}: ", level);
+        if !entries.is_empty() {
             for entry in entries.iter().filter(|e| e.valid) {
                 filter.push(entry.clone());
-                //print!("{}, ", entry);
             }
-            //println!("");
         }
     }
     filter
