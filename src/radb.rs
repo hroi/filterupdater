@@ -22,8 +22,7 @@ impl RadbClient {
 
     pub fn open<S: ToSocketAddrs>(target: S) -> io::Result<Self> {
         let mut err: io::Error = io::Error::new(io::ErrorKind::Other, "unreachable");
-        let mut iter = target.to_socket_addrs()?;
-        while let Some(sock_addr) = iter.next() {
+        for sock_addr in target.to_socket_addrs()?{
             match TcpStream::connect_timeout(&sock_addr, Duration::from_secs(30)) {
                 Ok(conn) => {
                     let mut client = RadbClient {
@@ -31,7 +30,6 @@ impl RadbClient {
                         init_done: false,
                     };
                     writeln!(client.stream, "!!\n!n{}-{}", Self::CLIENT, Self::VERSION)?;
-                    // client.stream.write_all(b"!!\n!nfilterupdater\n")?;
                     return Ok(client);
                 }
                 Err(e) => err = e,
@@ -67,13 +65,11 @@ impl RadbClient {
             };
             if self.init_done {
                 return ret;
+            } else if let Ok(Reply::C) = ret {
+                buf.clear();
+                self.init_done = true;
             } else {
-                if let Ok(Reply::C) = ret {
-                    buf.clear();
-                    self.init_done = true;
-                } else {
-                    return Err(io::Error::new(io::ErrorKind::Other, "protocol error"));
-                }
+                return Err(io::Error::new(io::ErrorKind::Other, "protocol error"));
             }
         }
     }
