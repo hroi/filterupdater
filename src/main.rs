@@ -8,6 +8,9 @@ use std::net::ToSocketAddrs;
 use std::str::FromStr;
 use std::time::Duration;
 
+mod aggregate;
+use aggregate::*;
+
 const WHOIS_HOST: &'static str = "whois.radb.net:43";
 
 #[derive(Debug, PartialEq)]
@@ -17,7 +20,7 @@ pub enum Reply {
     D,
 }
 
-type Prefix = (IpAddr, u8);
+pub type Prefix = (IpAddr, u8);
 
 fn read_reply<R: BufRead>(input: &mut R) -> Result<Reply, io::Error> {
     let mut buf = Vec::<u8>::new();
@@ -148,11 +151,22 @@ fn main() -> io::Result<()> {
     let mut q_sets: HashSet<String> = Default::default();
     let mut q_autnums: HashSet<u32> = Default::default();
 
-    let queries: io::Result<HashSet<Query>> = std::env::args()
+    let mut do_agg = false;
+
+    let mut queries: HashSet<Query> = Default::default();
+    for arg in std::env::args()
         .skip(1)
-        .map(|arg| arg.parse::<Query>())
-        .collect();
-    let queries = queries?;
+    {
+        if arg == "-a" {
+            do_agg = true;
+            continue;
+        }
+        let query: Query = arg.parse()?;
+        queries.insert(query);
+    }
+        // .map(|arg| arg.parse::<Query>())
+        // .collect();
+    //let queries = queries?;
 
     for q in queries.iter() {
         match q {
@@ -191,8 +205,16 @@ fn main() -> io::Result<()> {
         };
         let mut prefixes: Vec<&Prefix> = prefixes.iter().collect();
         prefixes.sort();
-        for (ip, masklen) in prefixes {
-            writeln!(out, "\t{}/{}", ip, masklen)?;
+        if do_agg {
+            let mut aggregated = aggregate(&prefixes[..]);
+            aggregated.sort();
+            for entry in aggregated {
+                writeln!(out, "\t{}", entry)?;
+            }
+        } else {
+            for (ip, masklen) in prefixes.iter() {
+                writeln!(out, "\t{}/{}", ip, masklen)?;
+            }
         }
     }
     Ok(())
