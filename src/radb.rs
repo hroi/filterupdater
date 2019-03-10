@@ -5,10 +5,16 @@ use std::net::ToSocketAddrs;
 use super::*;
 
 #[derive(Debug, PartialEq)]
+// See ftp://ftp.grnet.gr/pub/net/irrd/irrd-user.pdf - Appendix B
 pub enum Reply {
+    // Successful query data
     A(String),
+    // Successful query, no data
     C,
+    // Key not found
     D,
+    // Error
+    F(String),
 }
 
 pub struct RadbClient {
@@ -57,6 +63,10 @@ impl RadbClient {
                 }
                 Some(b'C') => Ok(Reply::C),
                 Some(b'D') => Ok(Reply::D),
+                Some(b'F') => Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    String::from_utf8_lossy(&buf[1..buf.len() - 1]),
+                )),
                 Some(code) => Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     format!("unknown code {}", code),
@@ -89,6 +99,10 @@ impl RadbClient {
             while let Reply::A(reply) = self.read_reply()? {
                 for autnum in reply.split_whitespace().map(|s| parse_autnum(s)) {
                     let autnum = autnum?;
+                    if autnum == 23456 {
+                        // 4-byte asn placeholder - skip!
+                        continue;
+                    }
                     autnums.push(autnum);
                 }
             }

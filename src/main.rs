@@ -81,29 +81,44 @@ fn main() -> io::Result<()> {
         let mut prefixes = HashSet::<Prefix>::new();
         match q {
             Query::AsSet(setname) => {
-                writeln!(out, "{}", setname)?;
+                writeln!(out, "no prefix-set {}", setname)?;
+                write!(out, "prefix-set {}", setname)?;
                 for autnum in &as_sets[setname.as_str()] {
                     prefixes.extend(autnums[&autnum].iter());
                 }
             }
             Query::Autnum(autnum) => {
-                writeln!(out, "AS{}", autnum)?;
+                writeln!(out, "no prefix-set AS{}", autnum)?;
+                write!(out, "prefix-set AS{}", autnum)?;
                 prefixes.extend(autnums[&autnum].iter());
             }
         };
         let mut prefixes: Vec<&Prefix> = prefixes.iter().collect();
         prefixes.sort();
+        let mut first = true;
         if do_agg {
             let mut aggregated = aggregate(&prefixes[..]);
             aggregated.sort();
             for entry in aggregated {
-                writeln!(out, "\t{}", entry)?;
+                if first {
+                    write!(out, "\n {}", entry)?;
+                    first = false;
+                } else {
+                    write!(out, ",\n {}", entry)?;
+                }
             }
         } else {
             for (ip, masklen) in prefixes.iter() {
-                writeln!(out, "\t{}/{}", ip, masklen)?;
+                if first {
+                    write!(out, "\n {}/{}", ip, masklen)?;
+                    first = false;
+                } else {
+                    write!(out, ",\n {}/{}", ip, masklen)?;
+                }
             }
         }
+
+        writeln!(out, "\nend-set")?;
     }
     Ok(())
 }

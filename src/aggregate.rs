@@ -82,29 +82,65 @@ impl FromStr for Entry {
 
 use std::cmp::{max, min};
 
+fn touching(this: &Entry, that: &Entry) -> bool {
+    match (this.prefix, that.prefix) {
+        (IpAddr::V4(a), IpAddr::V4(b)) => {
+            let ua = u32::from(a);
+            let ub = u32::from(b);
+            let wildcard_bits = 32 - this.mask as u32;
+            let next_prefix = ((ua >> wildcard_bits) + 1) << wildcard_bits;
+            (ua ^ ub) == (1 << 31) >> (u32::from(this.mask) - 1) // overlap
+                || ub == next_prefix
+        }
+
+        (IpAddr::V6(a), IpAddr::V6(b)) => {
+            let ua = u128::from(a);
+            let ub = u128::from(b);
+            let wildcard_bits = 128 - this.mask as u32;
+            let next_prefix = ((ua >> wildcard_bits) + 1) << wildcard_bits;
+            (ua ^ ub) == (1 << 127) >> (u32::from(this.mask) - 1) || ub == next_prefix
+        }
+        _ => false,
+    }
+}
+
 fn level_up(this: &mut Vec<Entry>, next: &mut Vec<Entry>) {
-    let mut this = &mut this[..];
     this.sort();
-    while this.len() >= 2 {
-        let (a, rest) = this.split_first_mut().unwrap();
-        this = rest;
-        let b = &mut this[0];
-        if !a.valid {
-            continue;
-        }
-        if a.can_level_up_with(b) {
-            let mut merged = a.clone();
-            merged.mask -= 1;
-            a.valid = false;
-            b.valid = false;
-            next.push(merged);
-            continue;
-        }
-        if (a.prefix, a.mask, a.min + 1) == (b.prefix, b.mask, b.min) {
-            a.min = min(a.min, b.min);
-            a.max = max(a.max, b.max);
-            b.valid = false;
-            continue;
+    let mut this = &mut this[..];
+    let mut did_change = true;
+    while did_change {
+        did_change = false;
+        while this.len() >= 2 {
+            let (a, rest) = this.split_first_mut().unwrap();
+            this = rest;
+            if !a.valid {
+                continue;
+            }
+            //dbg!(this.len());
+            for b in this.iter_mut().filter(|e| e.valid) {
+                if a.can_level_up_with(b) {
+                    let mut merged = a.clone();
+                    merged.mask -= 1;
+                    a.valid = false;
+                    b.valid = false;
+                    next.push(merged);
+                    did_change = true;
+                    continue;
+                }
+                if (a.prefix, a.mask, a.min + 1) == (b.prefix, b.mask, b.min)
+                    || (a.prefix, a.mask, a.max + 1) == (b.prefix, b.mask, b.min)
+                {
+                    a.min = min(a.min, b.min);
+                    a.max = max(a.max, b.max);
+                    b.valid = false;
+                    did_change = true;
+                    continue;
+                }
+                if !touching(a, b) {
+                    // dbg!(("not touching", a, b));
+                    break;
+                }
+            }
         }
     }
 }
@@ -117,7 +153,7 @@ pub fn aggregate(prefixes: &[&Prefix]) -> Vec<Entry> {
         levels[prefix.mask as usize].push(prefix.clone());
     }
     use std::mem;
-    for cur in (1..128).rev() {
+    for cur in (1..=128).rev() {
         let mut this = mem::replace(&mut levels[cur], vec![]);
         let mut next = mem::replace(&mut levels[cur - 1], vec![]);
 
