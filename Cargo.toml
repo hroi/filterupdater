@@ -5,3 +5,5 @@ authors = ["Hroi Sigurdsson <hs@netgroup.dk>"]
 edition = "2018"
 
 [dependencies]
+
+bufstream = "0.1"

@@ -3,14 +3,14 @@ use std::io;
 use std::io::prelude::*;
 use std::net::IpAddr;
 use std::net::TcpStream;
-use std::net::ToSocketAddrs;
 use std::str::FromStr;
 use std::time::Duration;
+
 
 mod aggregate;
 use aggregate::*;
 
-mod radb;
+pub mod radb;
 use radb::*;
 
 const WHOIS_HOST: &str = "whois.radb.net:43";
@@ -69,17 +69,13 @@ fn main() -> io::Result<()> {
         };
     }
 
-    let sock_addr = WHOIS_HOST.to_socket_addrs()?.next().unwrap();
-    let mut conn = TcpStream::connect_timeout(&sock_addr, Duration::from_secs(30))?;
-    conn.write_all(b"!!\n")?;
+    let mut client = RadbClient::open(WHOIS_HOST)?;
 
-    let as_sets: HashMap<String, Vec<u32>> = resolve_as_sets(&mut conn, &q_sets)?;
+    let as_sets: HashMap<&str, Vec<u32>> = client.resolve_as_sets(q_sets.iter())?;
     for (_as_set, autnums) in as_sets.iter() {
         q_autnums.extend(autnums.iter());
     }
-    let autnums: HashMap<u32, Vec<Prefix>> = resolve_autnums(&mut conn, &q_autnums)?;
-
-    conn.write_all(b"!q\n")?;
+    let autnums: HashMap<u32, Vec<Prefix>> = client.resolve_autnums(q_autnums.iter())?;
 
     let stdout = io::stdout();
     let mut out = stdout.lock();
@@ -88,8 +84,8 @@ fn main() -> io::Result<()> {
         match q {
             Query::AsSet(setname) => {
                 writeln!(out, "{}", setname)?;
-                for autnum in &as_sets[setname] {
-                    prefixes.extend(autnums[autnum].iter());
+                for autnum in &as_sets[setname.as_str()] {
+                    prefixes.extend(autnums[&autnum].iter());
                 }
             }
             Query::Autnum(autnum) => {
@@ -113,3 +109,6 @@ fn main() -> io::Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;
