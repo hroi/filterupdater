@@ -1,7 +1,7 @@
+use std::error::Error;
 use std::fmt;
 use std::net::IpAddr;
 use std::str::FromStr;
-use std::error::Error;
 
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
 pub struct Entry {
@@ -16,28 +16,29 @@ impl Entry {
     fn can_level_up_with(&self, other: &Self) -> bool {
         let overlaps = match (self.prefix, other.prefix) {
             (IpAddr::V4(a), IpAddr::V4(b)) => {
-                (u32::from(a) ^ u32::from(b)) == (1<<31) >> (u32::from(self.mask) - 1)
+                (u32::from(a) ^ u32::from(b)) == (1 << 31) >> (u32::from(self.mask) - 1)
             }
+
             (IpAddr::V6(a), IpAddr::V6(b)) => {
-                (u128::from(a) ^ u128::from(b)) == (1<<127) >> (u32::from(self.mask) - 1)
+                (u128::from(a) ^ u128::from(b)) == (1 << 127) >> (u32::from(self.mask) - 1)
             }
-            _ => false
+
+            _ => false,
         };
         overlaps && (self.min, self.max) == (other.min, other.max)
     }
 }
 
 use super::*;
-//type Prefix = (IpAddr, u8);
 
 impl Entry {
-    fn from_prefix((ip, masklen): &(IpAddr, u8)) -> Self {
+    fn from_prefix((ip, masklen): &Prefix) -> Self {
         Entry {
             prefix: *ip,
             mask: *masklen,
             min: *masklen,
             max: *masklen,
-            valid: true
+            valid: true,
         }
     }
 }
@@ -79,7 +80,6 @@ impl FromStr for Entry {
     }
 }
 
-
 use std::cmp::{max, min};
 
 fn level_up(this: &mut Vec<Entry>, next: &mut Vec<Entry>) {
@@ -92,8 +92,7 @@ fn level_up(this: &mut Vec<Entry>, next: &mut Vec<Entry>) {
         if !a.valid {
             continue;
         }
-        if a.can_level_up_with(b)
-        {
+        if a.can_level_up_with(b) {
             let mut merged = a.clone();
             merged.mask -= 1;
             a.valid = false;
@@ -101,7 +100,7 @@ fn level_up(this: &mut Vec<Entry>, next: &mut Vec<Entry>) {
             next.push(merged);
             continue;
         }
-        if (a.prefix, a.mask, a.min +1) == (b.prefix, b.mask, b.min) {
+        if (a.prefix, a.mask, a.min + 1) == (b.prefix, b.mask, b.min) {
             a.min = min(a.min, b.min);
             a.max = max(a.max, b.max);
             b.valid = false;
@@ -111,7 +110,7 @@ fn level_up(this: &mut Vec<Entry>, next: &mut Vec<Entry>) {
 }
 
 pub fn aggregate(prefixes: &[&Prefix]) -> Vec<Entry> {
-    let prefixes : Vec<_> = prefixes.iter().map(|p| Entry::from_prefix(p)).collect();
+    let prefixes: Vec<_> = prefixes.iter().map(|p| Entry::from_prefix(p)).collect();
     let mut levels = Vec::<Vec<Entry>>::new();
     levels.resize_with(129, Default::default);
     for prefix in prefixes.iter() {
