@@ -1,3 +1,4 @@
+use io::{Error, ErrorKind::*};
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::io::prelude::*;
@@ -32,7 +33,7 @@ impl FromStr for Query {
                 Ok(Query::AsSet(s.to_string()))
             }
         } else {
-            Err(io::Error::new(io::ErrorKind::InvalidInput, s))
+            Err(Error::new(InvalidInput, s))
         }
     }
 }

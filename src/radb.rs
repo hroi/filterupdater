@@ -1,8 +1,7 @@
 // https://www.radb.net/support/tutorials/query-options-flags.html
+use super::*;
 use bufstream::BufStream;
 use std::net::ToSocketAddrs;
-
-use super::*;
 
 #[derive(Debug, PartialEq)]
 // See ftp://ftp.grnet.gr/pub/net/irrd/irrd-user.pdf - Appendix B
@@ -19,6 +18,7 @@ pub enum Reply {
 
 pub struct RadbClient {
     stream: BufStream<TcpStream>,
+    buf: Vec<u8>,
     init_done: bool,
 }
 
@@ -27,13 +27,14 @@ impl RadbClient {
     const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
     pub fn open<S: ToSocketAddrs>(target: S) -> io::Result<Self> {
-        let mut err: io::Error = io::Error::new(io::ErrorKind::Other, "unreachable");
+        let mut err: io::Error = Error::new(Other, "unreachable");
         for sock_addr in target.to_socket_addrs()? {
             match TcpStream::connect_timeout(&sock_addr, Duration::from_secs(30)) {
                 Ok(conn) => {
                     let mut client = RadbClient {
                         stream: BufStream::new(conn),
                         init_done: false,
+                        buf: Vec::with_capacity(4096),
                     };
                     writeln!(client.stream, "!!\n!n{}-{}", Self::CLIENT, Self::VERSION)?;
                     return Ok(client);
@@ -45,41 +46,38 @@ impl RadbClient {
     }
 
     fn read_reply(&mut self) -> io::Result<Reply> {
-        let mut buf = Vec::<u8>::new();
+        //let mut buf = Vec::<u8>::new();
+        self.buf.clear();
         loop {
-            self.stream.read_until(b'\n', &mut buf)?;
-            let ret = match buf.get(0) {
+            self.stream.read_until(b'\n', &mut self.buf)?;
+            let ret = match self.buf.get(0) {
                 Some(b'A') => {
-                    let decimal_length = std::str::from_utf8(&buf[1..buf.len() - 1])
-                        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;;
-                    let alen: usize = decimal_length
-                        .parse()
-                        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-                    buf.resize(alen, 0);
-                    self.stream.read_exact(&mut buf)?;
-                    let content = String::from_utf8(buf.clone())
-                        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+                    let len_bytes = &self.buf[1..self.buf.len() - 1];
+                    let alen: usize = std::str::from_utf8(len_bytes)
+                        .map_err(|e| Error::new(InvalidData, e))
+                        .and_then(|s| s.parse().map_err(|e| Error::new(InvalidData, e)))?;
+                    self.buf.resize(alen, 0);
+                    self.stream.read_exact(&mut self.buf)?;
+                    let content = String::from_utf8(self.buf.clone())
+                        .map_err(|e| Error::new(InvalidData, e))?;
                     Ok(Reply::A(content))
                 }
                 Some(b'C') => Ok(Reply::C),
                 Some(b'D') => Ok(Reply::D),
-                Some(b'F') => Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    String::from_utf8_lossy(&buf[1..buf.len() - 1]),
+                Some(b'F') => Err(Error::new(
+                    InvalidData,
+                    String::from_utf8_lossy(&self.buf[1..self.buf.len() - 1]),
                 )),
-                Some(code) => Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("unknown code {}", code),
-                )),
-                None => Err(io::Error::new(io::ErrorKind::UnexpectedEof, "empty reply")),
+                Some(code) => Err(Error::new(InvalidData, format!("unknown code {}", code))),
+                None => Err(Error::new(UnexpectedEof, "empty reply")),
             };
             if self.init_done {
                 return ret;
             } else if let Ok(Reply::C) = ret {
-                buf.clear();
+                self.buf.clear();
                 self.init_done = true;
             } else {
-                return Err(io::Error::new(io::ErrorKind::Other, "protocol error"));
+                return Err(Error::new(Other, "protocol error"));
             }
         }
     }
@@ -151,11 +149,9 @@ impl Drop for RadbClient {
 
 pub fn parse_autnum(input: &str) -> io::Result<u32> {
     if input.starts_with("AS") {
-        input[2..]
-            .parse()
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+        input[2..].parse().map_err(|e| Error::new(InvalidData, e))
     } else {
-        Err(io::Error::new(io::ErrorKind::InvalidData, input))
+        Err(Error::new(InvalidData, input))
     }
 }
 
@@ -166,5 +162,5 @@ pub fn parse_prefix(input: &str) -> io::Result<Prefix> {
             return Ok((ip, masklen));
         }
     }
-    Err(io::Error::new(io::ErrorKind::InvalidData, input))
+    Err(Error::new(InvalidData, input))
 }
