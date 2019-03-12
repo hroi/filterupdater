@@ -1,5 +1,6 @@
 // https://www.radb.net/support/tutorials/query-options-flags.html
 use super::*;
+
 use bufstream::BufStream;
 use std::net::ToSocketAddrs;
 
@@ -19,7 +20,7 @@ pub enum Reply {
 pub struct RadbClient {
     stream: BufStream<TcpStream>,
     buf: Vec<u8>,
-    init_done: bool,
+    acks_outstanding: usize,
 }
 
 impl RadbClient {
@@ -33,10 +34,16 @@ impl RadbClient {
                 Ok(conn) => {
                     let mut client = RadbClient {
                         stream: BufStream::new(conn),
-                        init_done: false,
                         buf: Vec::with_capacity(4096),
+                        acks_outstanding: 0,
                     };
                     writeln!(client.stream, "!!\n!n{}-{}", Self::CLIENT, Self::VERSION)?;
+                    client.acks_outstanding += 1;
+                    // radb,afrinic,ripe,ripe-nonauth,bell,apnic,nttcom,altdb,panix,risq,
+                    // nestegg,level3,reach,aoltw,openface,arin,easynet,jpirr,host,rgnet,
+                    // rogers,bboi,tc,canarie
+                    writeln!(client.stream, "!sripe,apnic,arin")?;
+                    client.acks_outstanding += 1;
                     return Ok(client);
                 }
                 Err(e) => err = e,
@@ -46,7 +53,6 @@ impl RadbClient {
     }
 
     fn read_reply(&mut self) -> io::Result<Reply> {
-        //let mut buf = Vec::<u8>::new();
         self.buf.clear();
         loop {
             self.stream.read_until(b'\n', &mut self.buf)?;
@@ -71,13 +77,15 @@ impl RadbClient {
                 Some(code) => Err(Error::new(InvalidData, format!("unknown code {}", code))),
                 None => Err(Error::new(UnexpectedEof, "empty reply")),
             };
-            if self.init_done {
-                return ret;
-            } else if let Ok(Reply::C) = ret {
-                self.buf.clear();
-                self.init_done = true;
+            if self.acks_outstanding > 0 {
+                if let Ok(Reply::C) = ret {
+                    self.acks_outstanding -= 1;
+                    self.buf.clear();
+                } else {
+                    return Err(Error::new(Other, "protocol error"));
+                }
             } else {
-                return Err(Error::new(Other, "protocol error"));
+                return ret;
             }
         }
     }
