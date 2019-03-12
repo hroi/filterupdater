@@ -1,22 +1,17 @@
+// Docs:
 // https://www.radb.net/support/tutorials/query-options-flags.html
+// ftp://ftp.grnet.gr/pub/net/irrd/irrd-user.pdf - Appendix B
 use super::*;
 
 use bufstream::BufStream;
 use std::net::ToSocketAddrs;
 
-#[derive(Debug, PartialEq)]
-// See ftp://ftp.grnet.gr/pub/net/irrd/irrd-user.pdf - Appendix B
-pub enum Reply {
-    // Successful query data
-    A(String),
-    // Key not found
-    None,
-}
-
 pub struct RadbClient {
     stream: BufStream<TcpStream>,
     buf: Vec<u8>,
 }
+
+const TIMEOUT: Duration = Duration::from_secs(30);
 
 impl RadbClient {
     const CLIENT: &'static str = env!("CARGO_PKG_NAME");
@@ -25,8 +20,10 @@ impl RadbClient {
     pub fn open<S: ToSocketAddrs>(target: S) -> AppResult<Self> {
         let mut err: io::Error = Error::new(Other, "unreachable");
         for sock_addr in target.to_socket_addrs()? {
-            match TcpStream::connect_timeout(&sock_addr, Duration::from_secs(30)) {
+            match TcpStream::connect_timeout(&sock_addr, TIMEOUT) {
                 Ok(conn) => {
+                    conn.set_read_timeout(Some(TIMEOUT))?;
+                    conn.set_write_timeout(Some(TIMEOUT))?;
                     let mut client = RadbClient {
                         stream: BufStream::new(conn),
                         buf: Vec::with_capacity(4096),
@@ -35,7 +32,7 @@ impl RadbClient {
                     // radb,afrinic,ripe,ripe-nonauth,bell,apnic,nttcom,altdb,panix,risq,
                     // nestegg,level3,reach,aoltw,openface,arin,easynet,jpirr,host,rgnet,
                     // rogers,bboi,tc,canarie
-                    writeln!(client.stream, "!sripe,apnic,arin")?;
+                    writeln!(client.stream, "!sRIPE,APNIC,ARIN")?;
                     return Ok(client);
                 }
                 Err(e) => err = e,
@@ -44,13 +41,13 @@ impl RadbClient {
         Err(err.into())
     }
 
-    fn read_reply(&mut self) -> AppResult<Reply> {
+    fn read_reply(&mut self) -> AppResult<Option<String>> {
         let mut reply: Option<String> = None;
         loop {
             self.buf.clear();
             let len = self.stream.read_until(b'\n', &mut self.buf)? - 1;
-            match self.buf.get(0) {
-                Some(b'A') => {
+            match char::from(self.buf[0]) {
+                'A' => {
                     let len_bytes = &self.buf[1..len];
                     let content_len: usize = std::str::from_utf8(len_bytes)
                         .map_err(|e| Error::new(InvalidData, e))
@@ -61,24 +58,20 @@ impl RadbClient {
                         .map_err(|e| Error::new(InvalidData, e))?;
                     reply = Some(content);
                 }
-                Some(b'C') => {
-                    if let Some(reply) = reply {
-                        return Ok(Reply::A(reply));
+                'C' => {
+                    if reply.is_some() {
+                        return Ok(reply);
                     }
                 }
-                Some(b'D') => {
-                    return Ok(Reply::None);
+                'D' => {
+                    return Ok(None);
                 }
-                Some(b'F') => {
+                'F' => {
                     return Err(
                         Error::new(Other, String::from_utf8_lossy(&self.buf[1..len])).into(),
                     );
                 }
-                Some(code) => Err(Error::new(
-                    InvalidData,
-                    format!("unknown code {:?}", char::from(*code)),
-                ))?,
-                None => Err(Error::new(UnexpectedEof, "empty reply"))?,
+                code => Err(Error::new(InvalidData, format!("unknown code {:?}", code)))?,
             };
         }
     }
@@ -94,7 +87,7 @@ impl RadbClient {
         self.stream.flush()?;
         for set in sets.clone() {
             let autnums = ret.entry(set).or_insert_with(|| vec![]);
-            if let Reply::A(reply) = self.read_reply()? {
+            if let Some(reply) = self.read_reply()? {
                 for autnum in reply.split_whitespace().map(|s| parse_autnum(s)) {
                     let autnum = autnum?;
                     match autnum {
@@ -123,7 +116,7 @@ impl RadbClient {
         for autnum in autnums.clone() {
             let prefixlist = ret.entry(*autnum).or_insert_with(|| vec![]);
             for family in &[4, 6] {
-                if let Reply::A(reply) = self.read_reply()? {
+                if let Some(reply) = self.read_reply()? {
                     for elem in reply.split_whitespace() {
                         let prefix = parse_prefix(elem)?;
                         if family == &4 {
