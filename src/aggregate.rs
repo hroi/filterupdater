@@ -1,5 +1,9 @@
+use super::*;
+
+use std::cmp::{max, min};
 use std::error::Error;
 use std::fmt;
+use std::mem;
 use std::net::IpAddr;
 use std::str::FromStr;
 
@@ -28,8 +32,6 @@ impl Entry {
         overlaps && (self.min, self.max) == (other.min, other.max)
     }
 }
-
-use super::*;
 
 impl Entry {
     fn from_prefix((ip, masklen): &Prefix) -> Self {
@@ -80,8 +82,6 @@ impl FromStr for Entry {
     }
 }
 
-use std::cmp::{max, min};
-
 fn touching(this: &Entry, that: &Entry) -> bool {
     let wildcard_bits = 32 - u32::from(this.mask);
     match (this.prefix, that.prefix) {
@@ -126,9 +126,9 @@ fn level_up(this: &mut Vec<Entry>, next: &mut Vec<Entry>) {
                     continue;
                 }
                 if (a.prefix, a.mask, a.min + 1) == (b.prefix, b.mask, b.min)
-                    // || (a.prefix, a.mask, a.min - 1) == (b.prefix, b.mask, b.min)
-                    // || (a.prefix, a.mask, a.max + 1) == (b.prefix, b.mask, b.min)
-                    // || (a.prefix, a.mask, a.max - 1) == (b.prefix, b.mask, b.max)
+                // || (a.prefix, a.mask, a.min - 1) == (b.prefix, b.mask, b.min)
+                // || (a.prefix, a.mask, a.max + 1) == (b.prefix, b.mask, b.min)
+                // || (a.prefix, a.mask, a.max - 1) == (b.prefix, b.mask, b.max)
                 {
                     a.min = min(a.min, b.min);
                     a.max = max(a.max, b.max);
@@ -153,7 +153,6 @@ pub fn aggregate(prefixes: &[&Prefix]) -> Vec<Entry> {
         levels[prefix.mask as usize].push(prefix.clone());
     }
     for cur in (1..=128).rev() {
-        use std::mem;
         let mut this = mem::replace(&mut levels[cur], vec![]);
         let mut next = mem::replace(&mut levels[cur - 1], vec![]);
 
@@ -162,12 +161,8 @@ pub fn aggregate(prefixes: &[&Prefix]) -> Vec<Entry> {
         mem::replace(&mut levels[cur - 1], next);
     }
     let mut filter = Vec::new();
-    for (_level, entries) in levels.iter().enumerate().rev() {
-        if !entries.is_empty() {
-            for entry in entries.iter().filter(|e| e.valid) {
-                filter.push(entry.clone());
-            }
-        }
+    for entries in levels {
+        filter.extend(entries.into_iter().filter(|e| e.valid));
     }
     filter
 }
