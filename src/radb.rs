@@ -9,25 +9,20 @@ use std::net::ToSocketAddrs;
 pub enum Reply {
     // Successful query data
     A(String),
-    // Successful query, no data
-    C,
     // Key not found
-    D,
-    // Error
-    F(String),
+    None,
 }
 
 pub struct RadbClient {
     stream: BufStream<TcpStream>,
     buf: Vec<u8>,
-    acks_outstanding: usize,
 }
 
 impl RadbClient {
     const CLIENT: &'static str = env!("CARGO_PKG_NAME");
     const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
-    pub fn open<S: ToSocketAddrs>(target: S) -> io::Result<Self> {
+    pub fn open<S: ToSocketAddrs>(target: S) -> AppResult<Self> {
         let mut err: io::Error = Error::new(Other, "unreachable");
         for sock_addr in target.to_socket_addrs()? {
             match TcpStream::connect_timeout(&sock_addr, Duration::from_secs(30)) {
@@ -35,81 +30,78 @@ impl RadbClient {
                     let mut client = RadbClient {
                         stream: BufStream::new(conn),
                         buf: Vec::with_capacity(4096),
-                        acks_outstanding: 0,
                     };
                     writeln!(client.stream, "!!\n!n{}-{}", Self::CLIENT, Self::VERSION)?;
-                    client.acks_outstanding += 1;
                     // radb,afrinic,ripe,ripe-nonauth,bell,apnic,nttcom,altdb,panix,risq,
                     // nestegg,level3,reach,aoltw,openface,arin,easynet,jpirr,host,rgnet,
                     // rogers,bboi,tc,canarie
                     writeln!(client.stream, "!sripe,apnic,arin")?;
-                    client.acks_outstanding += 1;
                     return Ok(client);
                 }
                 Err(e) => err = e,
             }
         }
-        Err(err)
+        Err(err.into())
     }
 
-    fn read_reply(&mut self) -> io::Result<Reply> {
-        self.buf.clear();
+    fn read_reply(&mut self) -> AppResult<Reply> {
+        let mut reply: Option<String> = None;
         loop {
-            self.stream.read_until(b'\n', &mut self.buf)?;
-            let ret = match self.buf.get(0) {
+            self.buf.clear();
+            let len = self.stream.read_until(b'\n', &mut self.buf)? - 1;
+            match self.buf.get(0) {
                 Some(b'A') => {
-                    let len_bytes = &self.buf[1..self.buf.len() - 1];
-                    let alen: usize = std::str::from_utf8(len_bytes)
+                    let len_bytes = &self.buf[1..len];
+                    let content_len: usize = std::str::from_utf8(len_bytes)
                         .map_err(|e| Error::new(InvalidData, e))
                         .and_then(|s| s.parse().map_err(|e| Error::new(InvalidData, e)))?;
-                    self.buf.resize(alen, 0);
+                    self.buf.resize(content_len, 0);
                     self.stream.read_exact(&mut self.buf)?;
                     let content = String::from_utf8(self.buf.clone())
                         .map_err(|e| Error::new(InvalidData, e))?;
-                    Ok(Reply::A(content))
+                    reply = Some(content);
                 }
-                Some(b'C') => Ok(Reply::C),
-                Some(b'D') => Ok(Reply::D),
-                Some(b'F') => Err(Error::new(
+                Some(b'C') => {
+                    if let Some(reply) = reply {
+                        return Ok(Reply::A(reply));
+                    }
+                }
+                Some(b'D') => {
+                    return Ok(Reply::None);
+                }
+                Some(b'F') => {
+                    return Err(
+                        Error::new(Other, String::from_utf8_lossy(&self.buf[1..len])).into(),
+                    );
+                }
+                Some(code) => Err(Error::new(
                     InvalidData,
-                    String::from_utf8_lossy(&self.buf[1..self.buf.len() - 1]),
-                )),
-                Some(code) => Err(Error::new(InvalidData, format!("unknown code {}", code))),
-                None => Err(Error::new(UnexpectedEof, "empty reply")),
+                    format!("unknown code {:?}", char::from(*code)),
+                ))?,
+                None => Err(Error::new(UnexpectedEof, "empty reply"))?,
             };
-            if self.acks_outstanding > 0 {
-                if let Ok(Reply::C) = ret {
-                    self.acks_outstanding -= 1;
-                    self.buf.clear();
-                } else {
-                    return Err(Error::new(Other, "protocol error"));
-                }
-            } else {
-                return ret;
-            }
         }
     }
 
     pub fn resolve_as_sets<'a, I: Iterator<Item = &'a String> + Clone>(
         &mut self,
         sets: I,
-    ) -> io::Result<HashMap<&'a str, Vec<u32>>> {
+    ) -> AppResult<HashMap<&'a str, Vec<u32>>> {
         let mut ret: HashMap<&str, Vec<u32>> = HashMap::new();
         for set in sets.clone() {
             writeln!(self.stream, "!i{},1", set)?;
         }
-
         self.stream.flush()?;
         for set in sets.clone() {
             let autnums = ret.entry(set).or_insert_with(|| vec![]);
-            while let Reply::A(reply) = self.read_reply()? {
+            if let Reply::A(reply) = self.read_reply()? {
                 for autnum in reply.split_whitespace().map(|s| parse_autnum(s)) {
                     let autnum = autnum?;
-                    if autnum == 23456 {
-                        // 4-byte asn placeholder - skip!
-                        continue;
+                    match autnum {
+                        // invalid as'es
+                        0 | 23_456 | 64_496...65_535 | 4_200_000_000...4_294_967_294 => continue,
+                        valid => autnums.push(valid),
                     }
-                    autnums.push(autnum);
                 }
             }
         }
@@ -119,7 +111,7 @@ impl RadbClient {
     pub fn resolve_autnums<'a, I: Iterator<Item = &'a u32> + Clone>(
         &mut self,
         autnums: I,
-    ) -> io::Result<HashMap<u32, Vec<Prefix>>> {
+    ) -> AppResult<HashMap<u32, Vec<Prefix>>> {
         for autnum in autnums.clone() {
             writeln!(self.stream, "!gas{}", autnum)?;
             writeln!(self.stream, "!6as{}", autnum)?;
@@ -131,7 +123,7 @@ impl RadbClient {
         for autnum in autnums.clone() {
             let prefixlist = ret.entry(*autnum).or_insert_with(|| vec![]);
             for family in &[4, 6] {
-                while let Reply::A(reply) = self.read_reply()? {
+                if let Reply::A(reply) = self.read_reply()? {
                     for elem in reply.split_whitespace() {
                         let prefix = parse_prefix(elem)?;
                         if family == &4 {

@@ -38,7 +38,9 @@ impl FromStr for Query {
     }
 }
 
-fn main() -> io::Result<()> {
+pub type AppResult<T> = Result<T, Box<Error>>;
+
+fn main() -> AppResult<()> {
     let mut q_sets: HashSet<String> = Default::default();
     let mut q_autnums: HashSet<u32> = Default::default();
 

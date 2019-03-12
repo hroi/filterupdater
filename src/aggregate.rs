@@ -22,11 +22,9 @@ impl Entry {
             (IpAddr::V4(a), IpAddr::V4(b)) => {
                 (u32::from(a) ^ u32::from(b)) == (1 << 31) >> (u32::from(self.mask) - 1)
             }
-
             (IpAddr::V6(a), IpAddr::V6(b)) => {
                 (u128::from(a) ^ u128::from(b)) == (1 << 127) >> (u32::from(self.mask) - 1)
             }
-
             _ => false,
         };
         overlaps && (self.min, self.max) == (other.min, other.max)
@@ -68,24 +66,25 @@ impl FromStr for Entry {
     fn from_str(s: &str) -> Result<Entry, Self::Err> {
         let mut elems = s.split('/');
         if let (Some(ip), Some(mask), None) = (elems.next(), elems.next(), elems.next()) {
-            if let (Ok(prefix), Ok(mask)) = (ip.parse(), mask.parse()) {
-                return Ok(Entry {
-                    prefix,
-                    mask,
-                    min: mask,
-                    max: mask,
-                    valid: true,
-                });
-            }
+            let prefix = ip.parse()?;
+            let mask = mask.parse()?;
+            Ok(Entry {
+                prefix,
+                mask,
+                min: mask,
+                max: mask,
+                valid: true,
+            })
+        } else {
+            Err("invalid prefix".into())
         }
-        Err("invalid prefix".into())
     }
 }
 
 fn touching(this: &Entry, that: &Entry) -> bool {
-    let wildcard_bits = 32 - u32::from(this.mask);
     match (this.prefix, that.prefix) {
         (IpAddr::V4(a), IpAddr::V4(b)) => {
+            let wildcard_bits = 32 - u32::from(this.mask);
             let ua = u32::from(a);
             let ub = u32::from(b);
             let next_prefix = ua + (1 << wildcard_bits);
@@ -93,6 +92,7 @@ fn touching(this: &Entry, that: &Entry) -> bool {
         }
 
         (IpAddr::V6(a), IpAddr::V6(b)) => {
+            let wildcard_bits = 128 - u32::from(this.mask);
             let ua = u128::from(a);
             let ub = u128::from(b);
             let next_prefix = ua + (1 << wildcard_bits);
@@ -114,7 +114,6 @@ fn level_up(this: &mut Vec<Entry>, next: &mut Vec<Entry>) {
             if !a.valid {
                 continue;
             }
-            //dbg!(this.len());
             for b in this.iter_mut().filter(|e| e.valid) {
                 if a.can_level_up_with(b) {
                     let mut merged = a.clone();
@@ -125,11 +124,7 @@ fn level_up(this: &mut Vec<Entry>, next: &mut Vec<Entry>) {
                     did_change = true;
                     continue;
                 }
-                if (a.prefix, a.mask, a.min + 1) == (b.prefix, b.mask, b.min)
-                // || (a.prefix, a.mask, a.min - 1) == (b.prefix, b.mask, b.min)
-                // || (a.prefix, a.mask, a.max + 1) == (b.prefix, b.mask, b.min)
-                // || (a.prefix, a.mask, a.max - 1) == (b.prefix, b.mask, b.max)
-                {
+                if (a.prefix, a.mask, a.min + 1) == (b.prefix, b.mask, b.min) {
                     a.min = min(a.min, b.min);
                     a.max = max(a.max, b.max);
                     b.valid = false;
@@ -137,7 +132,6 @@ fn level_up(this: &mut Vec<Entry>, next: &mut Vec<Entry>) {
                     continue;
                 }
                 if !touching(a, b) {
-                    // dbg!(("not touching", a, b));
                     break;
                 }
             }
