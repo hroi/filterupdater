@@ -18,7 +18,7 @@ impl RadbClient {
     const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
     pub fn open<S: ToSocketAddrs>(target: S) -> AppResult<Self> {
-        let mut err: io::Error = Error::new(Other, "unreachable");
+        let mut err: io::Error = Error::new(Other, "no address for host");
         for sock_addr in target.to_socket_addrs()? {
             match TcpStream::connect_timeout(&sock_addr, TIMEOUT) {
                 Ok(conn) => {
