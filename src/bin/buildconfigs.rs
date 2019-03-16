@@ -5,7 +5,7 @@ extern crate toml;
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fmt::Write as WriteFmt;
-use std::fs::File;
+use std::fs::{rename, File};
 use std::io::prelude::*;
 use std::process;
 
@@ -205,8 +205,8 @@ fn main() -> AppResult<()> {
             "{}/{}.txt",
             root_config.global.outputdir, router_config.hostname
         );
-        let mut outputfile = File::create(&outputfile_name)?;
-        eprintln!("Writing {}", outputfile_name);
+        let temp_name = format!("{}.tmp", &outputfile_name);
+        let mut outputfile = File::create(&temp_name)?;
         match router_config.style.as_str() {
             "prefix-set" => {
                 for object_name in router_config.filters.iter() {
@@ -225,6 +225,8 @@ fn main() -> AppResult<()> {
             }
             unknown => Err(format!("unknown style: {}", unknown))?,
         }
+        rename(&temp_name, &outputfile_name)?;
+        eprintln!("Wrote {}", outputfile_name);
     }
 
     Ok(())
