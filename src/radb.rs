@@ -1,6 +1,6 @@
-use std::io::{self, Error, ErrorKind::*};
 use std::collections::HashMap;
 use std::io::prelude::*;
+use std::io::{self, Error, ErrorKind::*};
 use std::net::TcpStream;
 use std::time::Duration;
 
@@ -22,8 +22,9 @@ const TIMEOUT: Duration = Duration::from_secs(30);
 impl RadbClient {
     const CLIENT: &'static str = env!("CARGO_PKG_NAME");
     const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+    const GIT_HASH: &'static str = env!("GIT_HASH");
 
-    pub fn open<S: ToSocketAddrs>(target: S) -> AppResult<Self> {
+    pub fn open<S: ToSocketAddrs>(target: S, sources: &str) -> AppResult<Self> {
         let mut err: io::Error = Error::new(Other, "no address for host");
         for sock_addr in target.to_socket_addrs()? {
             match TcpStream::connect_timeout(&sock_addr, TIMEOUT) {
@@ -34,11 +35,17 @@ impl RadbClient {
                         stream: BufStream::new(conn),
                         buf: Vec::with_capacity(4096),
                     };
-                    writeln!(client.stream, "!!\n!n{}-{}", Self::CLIENT, Self::VERSION)?;
+                    writeln!(
+                        client.stream,
+                        "!!\n!n{}-{}-{}",
+                        Self::CLIENT,
+                        Self::VERSION,
+                        &Self::GIT_HASH[..8]
+                    )?;
                     // radb,afrinic,ripe,ripe-nonauth,bell,apnic,nttcom,altdb,panix,risq,
                     // nestegg,level3,reach,aoltw,openface,arin,easynet,jpirr,host,rgnet,
                     // rogers,bboi,tc,canarie
-                    writeln!(client.stream, "!sRIPE,APNIC,ARIN")?;
+                    writeln!(client.stream, "!s{}", sources)?;
                     return Ok(client);
                 }
                 Err(e) => err = e,

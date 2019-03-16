@@ -3,9 +3,11 @@ extern crate serde_derive;
 extern crate toml;
 
 use std::collections::{HashMap, HashSet};
+use std::env;
 use std::fmt::Write as WriteFmt;
 use std::fs::File;
 use std::io::prelude::*;
+use std::process;
 
 #[derive(Debug, Deserialize)]
 struct RootConfig {
@@ -31,32 +33,25 @@ struct RouterConfig {
 use filterupdater::*;
 use radb::*;
 
-// #[derive(PartialEq, Eq, Hash)]
-// enum Query {
-//     Autnum(u32),
-//     AsSet(String),
-// }
-// impl FromStr for Query {
-//     type Err = io::Error;
-//     fn from_str(s: &str) -> io::Result<Query> {
-//         if s.starts_with("AS") {
-//             if let Ok(autnum) = parse_autnum(s) {
-//                 Ok(Query::Autnum(autnum))
-//             } else {
-//                 Ok(Query::AsSet(s.to_string()))
-//             }
-//         } else {
-//             Err(Error::new(InvalidInput, s))
-//         }
-//     }
-// }
-
 fn main() -> AppResult<()> {
-    let mut config_file = File::open("config.toml")?;
+    let mut args = env::args();
+    let progname = args.next().unwrap();
+    let config_file_name = if let Some(arg) = args.next() {
+        arg
+    } else {
+        eprintln!(
+            "Usage: {} <config.toml>",
+            std::path::Path::new(&progname)
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+        );
+        process::exit(-1);
+    };
+    let mut config_file = File::open(config_file_name)?;
     let mut file_contents = String::new();
     config_file.read_to_string(&mut file_contents)?;
     let root_config: RootConfig = toml::from_str(&file_contents)?;
-    //println!("{:#?}", root_config);
     std::fs::create_dir_all(&root_config.global.outputdir)?;
 
     let objects: HashSet<&str> = root_config
@@ -65,10 +60,6 @@ fn main() -> AppResult<()> {
         .flat_map(|r| r.filters.iter())
         .map(|s| s.as_str())
         .collect();
-    // println!("resolving: {:?}", objects);
-
-    //let mut q_sets: HashSet<String> = Default::default();
-    //let mut q_autnums: HashSet<u32> = Default::default();
 
     let mut q_sets: HashSet<&str> = Default::default();
     let mut q_nums: HashSet<u32> = Default::default();
@@ -79,19 +70,13 @@ fn main() -> AppResult<()> {
             q_sets.insert(o);
         }
     }
-    // println!("q_sets: {:#?}", q_sets);
-    // println!("q_nums: {:#?}", q_nums);
 
-    let mut client = RadbClient::open(root_config.global.server)?;
+    let mut client = RadbClient::open(root_config.global.server, &root_config.global.sources.join(","))?;
     let nums = client.resolve_as_sets(q_sets.iter())?;
 
-    // println!("resolve_as_sets: {:?}", nums);
     q_nums.extend(nums.values().flat_map(|s| s));
 
-    // println!("full nums: {:#?}", q_nums);
-
     let asprefixes = client.resolve_autnums(q_nums.iter())?;
-    // println!("as prefixes: {:#?}", asprefixes);
 
     let mut prefix_set_configs: HashMap<&str, String> = Default::default();
     let mut prefix_list_configs: HashMap<&str, String> = Default::default();
