@@ -143,6 +143,7 @@ fn main() -> AppResult<()> {
                         )?;
                     }
                 }
+                writeln!(&mut prefix_list_config, "end")?;
                 prefix_list_configs.insert(object_name, prefix_list_config);
             }
         } else {
@@ -188,6 +189,7 @@ fn main() -> AppResult<()> {
                         )?;
                     }
                 }
+                writeln!(&mut prefix_list_config, "end")?;
                 prefix_list_configs.insert(object_name, prefix_list_config);
             }
         }
