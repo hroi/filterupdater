@@ -1,0 +1,20 @@
+[global]
+server = "whois.radb.net:43"
+sources = ["RADB", "RIPE", "APNIC"]
+aggregate = true
+outputdir = "./output"
+
+[[routers]]
+hostname = "xr-router"
+style = "prefix-set"
+filters = [
+  "AS-RIPENCC",
+]
+
+[[routers]]
+hostname = "ios-router"
+style = "prefix-list"
+filters = [
+  "AS-RIPENCC"
+]
+
