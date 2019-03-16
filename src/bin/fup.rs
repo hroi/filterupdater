@@ -31,7 +31,7 @@ struct RouterConfig {
     filters: Vec<String>,
 }
 
-use filterupdater::*;
+use fup::*;
 use radb::*;
 
 fn main() -> AppResult<()> {
@@ -72,6 +72,7 @@ fn main() -> AppResult<()> {
         }
     }
 
+    let start_time = time::now();
     let mut client = RadbClient::open(
         root_config.global.server,
         &root_config.global.sources.join(","),
@@ -82,10 +83,15 @@ fn main() -> AppResult<()> {
     q_nums.extend(nums.values().flat_map(|s| s));
 
     let asprefixes = client.resolve_autnums(q_nums.iter())?;
-    eprintln!("{} objects downloaded.", q_sets.len() + q_nums.len());
+    let end_time = time::now();
+    let elapsed = end_time - start_time;
+    eprintln!(
+        "{} objects downloaded in {:.3} s.",
+        q_sets.len() + q_nums.len(),
+        f64::from(elapsed.num_milliseconds() as u32) / 1000.0
+    );
 
-    let generated_at = time::now_utc();
-    let generated_at = generated_at.rfc3339();
+    let generated_at = end_time.rfc3339();
     let mut prefix_set_configs: HashMap<&str, String> = Default::default();
     let mut prefix_list_configs: HashMap<&str, String> = Default::default();
     for object_name in objects.iter() {
