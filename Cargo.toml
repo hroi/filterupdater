@@ -1,6 +1,6 @@
 [package]
 name = "filterupdater"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Hroi Sigurdsson <hs@netgroup.dk>"]
 edition = "2018"
 
