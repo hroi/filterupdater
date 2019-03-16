@@ -95,6 +95,11 @@ fn main() -> AppResult<()> {
             );
         }
 
+        if prefix_set.is_empty() {
+            eprintln!("Warning: {} is empty, skipping", object_name);
+            continue;
+        }
+
         let mut prefix_list: Vec<&Prefix> = prefix_set.iter().collect();
         prefix_list.sort();
 
@@ -207,14 +212,14 @@ fn main() -> AppResult<()> {
         for object_name in router_config.filters.iter() {
             let config = match router_config.style.as_str() {
                 "prefix-set" => prefix_set_configs
-                    .get::<str>(object_name.as_str())
-                    .expect("object name not found"),
+                    .get::<str>(object_name.as_str()),
                 "prefix-list" => prefix_list_configs
-                    .get::<str>(object_name.as_str())
-                    .expect("object name not found"),
+                    .get::<str>(object_name.as_str()),
                 unknown => Err(format!("unknown style: {}", unknown))?,
             };
-            outputfile.write_all(config.as_bytes())?;
+            if let Some(config) = config {
+                outputfile.write_all(config.as_bytes())?;
+            }
         }
     }
 
