@@ -82,6 +82,7 @@ fn main() -> AppResult<()> {
     let mut prefix_list_configs: HashMap<&str, String> = Default::default();
     for object_name in objects.iter() {
         let mut prefix_set: HashSet<Prefix> = Default::default();
+
         if let Ok(num) = parse_autnum(object_name) {
             prefix_set.extend(asprefixes[&num].iter());
         } else {
@@ -91,11 +92,14 @@ fn main() -> AppResult<()> {
                     .flat_map(|num| asprefixes[num].iter()),
             );
         }
+
         let mut prefix_list: Vec<&Prefix> = prefix_set.iter().collect();
         prefix_list.sort();
 
         if root_config.global.aggregate {
-            let prefix_list = aggregate::aggregate(&prefix_list[..]);
+            let mut prefix_list = aggregate::aggregate(&prefix_list[..]);
+            prefix_list.sort();
+
             if root_config.routers.iter().any(|r| r.style == "prefix-set") {
                 let mut prefix_set_config = String::new();
                 writeln!(
@@ -115,6 +119,7 @@ fn main() -> AppResult<()> {
                 writeln!(&mut prefix_set_config, "\nend-set")?;
                 prefix_set_configs.insert(object_name, prefix_set_config);
             }
+
             if root_config.routers.iter().any(|r| r.style == "prefix-list") {
                 let mut prefix_list_config = String::new();
                 writeln!(&mut prefix_list_config, "no ip prefix-list {}", object_name)?;
