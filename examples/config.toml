@@ -9,12 +9,14 @@ hostname = "xr-router"
 style = "prefix-set"
 filters = [
   "AS-RIPENCC",
+  "AS3333",
 ]
 
 [[routers]]
 hostname = "ios-router"
 style = "prefix-list"
 filters = [
-  "AS-RIPENCC"
+  "AS-RIPENCC",
+  "AS3333",
 ]
 
