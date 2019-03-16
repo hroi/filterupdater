@@ -117,7 +117,7 @@ fn main() -> AppResult<()> {
                 let mut prefix_set_config = String::new();
                 writeln!(
                     &mut prefix_set_config,
-                    "no prefix-set {}\nprefix_set {}\n # Generated at {}",
+                    "no prefix-set {}\nprefix-set {}\n # Generated at {}",
                     object_name, object_name, &generated_at
                 )?;
                 let mut first = true;
@@ -173,7 +173,7 @@ fn main() -> AppResult<()> {
                 let mut prefix_set_config = String::new();
                 writeln!(
                     &mut prefix_set_config,
-                    "no prefix-set {}\nprefix_set {}",
+                    "no prefix-set {}\nprefix-set {}",
                     object_name, object_name
                 )?;
                 let mut first = true;
