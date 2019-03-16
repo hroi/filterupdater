@@ -1,18 +1,21 @@
-use super::*;
+use std::net::IpAddr;
+use std::str::FromStr;
+
 
 use std::cmp::{max, min};
 use std::error::Error;
 use std::fmt;
 use std::mem;
-use std::net::IpAddr;
-use std::str::FromStr;
+//use std::net::IpAddr;
+//use std::str::FromStr;
+use super::*;
 
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
 pub struct Entry {
-    prefix: IpAddr,
-    mask: u8,
-    min: u8,
-    max: u8,
+    pub prefix: IpAddr,
+    pub mask: u8,
+    pub min: u8,
+    pub max: u8,
     valid: bool,
 }
 

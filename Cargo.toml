@@ -1,9 +1,11 @@
 [package]
 name = "filterupdater"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Hroi Sigurdsson <hs@netgroup.dk>"]
 edition = "2018"
 
 [dependencies]
-
 bufstream = "0.1"
+toml = "0.5"
+serde = "1.0"
+serde_derive = "1.0"

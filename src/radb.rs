@@ -1,3 +1,9 @@
+use std::io::{self, Error, ErrorKind::*};
+use std::collections::HashMap;
+use std::io::prelude::*;
+use std::net::TcpStream;
+use std::time::Duration;
+
 // Docs:
 // https://www.radb.net/support/tutorials/query-options-flags.html
 // ftp://ftp.grnet.gr/pub/net/irrd/irrd-user.pdf - Appendix B
@@ -76,7 +82,7 @@ impl RadbClient {
         }
     }
 
-    pub fn resolve_as_sets<'a, I: Iterator<Item = &'a String> + Clone>(
+    pub fn resolve_as_sets<'a, I: Iterator<Item = &'a &'a str> + Clone>(
         &mut self,
         sets: I,
     ) -> AppResult<HashMap<&'a str, Vec<u32>>> {
