@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate serde_derive;
+extern crate time;
 extern crate toml;
 
 use std::collections::{HashMap, HashSet};
@@ -71,7 +72,10 @@ fn main() -> AppResult<()> {
         }
     }
 
-    let mut client = RadbClient::open(root_config.global.server, &root_config.global.sources.join(","))?;
+    let mut client = RadbClient::open(
+        root_config.global.server,
+        &root_config.global.sources.join(","),
+    )?;
     eprintln!("Connected to {}.", client.peer_addr()?);
     let nums = client.resolve_as_sets(q_sets.iter())?;
 
@@ -80,6 +84,8 @@ fn main() -> AppResult<()> {
     let asprefixes = client.resolve_autnums(q_nums.iter())?;
     eprintln!("{} objects downloaded.", q_sets.len() + q_nums.len());
 
+    let generated_at = time::now_utc();
+    let generated_at = generated_at.rfc3339();
     let mut prefix_set_configs: HashMap<&str, String> = Default::default();
     let mut prefix_list_configs: HashMap<&str, String> = Default::default();
     for object_name in objects.iter() {
@@ -111,8 +117,8 @@ fn main() -> AppResult<()> {
                 let mut prefix_set_config = String::new();
                 writeln!(
                     &mut prefix_set_config,
-                    "no prefix-set {}\nprefix_set {}",
-                    object_name, object_name
+                    "no prefix-set {}\nprefix_set {}\n # Generated at {}",
+                    object_name, object_name, &generated_at
                 )?;
                 let mut first = true;
                 for prefix in prefix_list.iter() {
@@ -132,8 +138,18 @@ fn main() -> AppResult<()> {
                 writeln!(&mut prefix_list_config, "no ip prefix-list {}", object_name)?;
                 writeln!(
                     &mut prefix_list_config,
+                    "ip prefix-list {} description Generated at {}",
+                    object_name, &generated_at
+                )?;
+                writeln!(
+                    &mut prefix_list_config,
                     "no ipv6 prefix-list {}",
                     object_name
+                )?;
+                writeln!(
+                    &mut prefix_list_config,
+                    "ipv6 prefix-list {} description Generated at {}",
+                    object_name, &generated_at
                 )?;
                 for prefix in prefix_list.iter() {
                     if prefix.prefix.is_ipv4() {
