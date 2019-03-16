@@ -22,7 +22,7 @@ const TIMEOUT: Duration = Duration::from_secs(30);
 impl RadbClient {
     const CLIENT: &'static str = env!("CARGO_PKG_NAME");
     const VERSION: &'static str = env!("CARGO_PKG_VERSION");
-    const GIT_HASH: &'static str = env!("GIT_HASH");
+    const GIT_HASH: Option<&'static str> = option_env!("GIT_HASH");
 
     pub fn open<S: ToSocketAddrs>(target: S, sources: &str) -> AppResult<Self> {
         let mut err: io::Error = Error::new(Other, "no address for host");
@@ -35,13 +35,17 @@ impl RadbClient {
                         stream: BufStream::new(conn),
                         buf: Vec::with_capacity(4096),
                     };
-                    writeln!(
-                        client.stream,
-                        "!!\n!n{}-{}-{}",
-                        Self::CLIENT,
-                        Self::VERSION,
-                        &Self::GIT_HASH[..8]
-                    )?;
+                    if let Some(hash) = Self::GIT_HASH {
+                        writeln!(
+                            client.stream,
+                            "!!\n!n{}-{}-{}",
+                            Self::CLIENT,
+                            Self::VERSION,
+                            &hash[..8]
+                        )
+                    } else {
+                        writeln!(client.stream, "!!\n!n{}-{}", Self::CLIENT, Self::VERSION,)
+                    }?;
                     // radb,afrinic,ripe,ripe-nonauth,bell,apnic,nttcom,altdb,panix,risq,
                     // nestegg,level3,reach,aoltw,openface,arin,easynet,jpirr,host,rgnet,
                     // rogers,bboi,tc,canarie
