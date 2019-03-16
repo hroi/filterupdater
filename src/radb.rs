@@ -10,7 +10,7 @@ use std::time::Duration;
 use super::*;
 
 use bufstream::BufStream;
-use std::net::ToSocketAddrs;
+use std::net::{SocketAddr, ToSocketAddrs};
 
 pub struct RadbClient {
     stream: BufStream<TcpStream>,
@@ -56,6 +56,10 @@ impl RadbClient {
             }
         }
         Err(err.into())
+    }
+
+    pub fn peer_addr(&self) -> io::Result<SocketAddr> {
+        self.stream.get_ref().peer_addr()
     }
 
     fn read_reply(&mut self) -> AppResult<Option<String>> {

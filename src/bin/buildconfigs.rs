@@ -72,11 +72,13 @@ fn main() -> AppResult<()> {
     }
 
     let mut client = RadbClient::open(root_config.global.server, &root_config.global.sources.join(","))?;
+    eprintln!("Connected to {}.", client.peer_addr()?);
     let nums = client.resolve_as_sets(q_sets.iter())?;
 
     q_nums.extend(nums.values().flat_map(|s| s));
 
     let asprefixes = client.resolve_autnums(q_nums.iter())?;
+    eprintln!("{} objects downloaded.", q_sets.len() + q_nums.len());
 
     let mut prefix_set_configs: HashMap<&str, String> = Default::default();
     let mut prefix_list_configs: HashMap<&str, String> = Default::default();
