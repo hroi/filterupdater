@@ -150,7 +150,6 @@ fn main() -> AppResult<()> {
                         )?;
                     }
                 }
-                writeln!(&mut prefix_list_config, "end")?;
                 prefix_list_configs.insert(object_name, prefix_list_config);
             }
         } else {
@@ -196,7 +195,6 @@ fn main() -> AppResult<()> {
                         )?;
                     }
                 }
-                writeln!(&mut prefix_list_config, "end")?;
                 prefix_list_configs.insert(object_name, prefix_list_config);
             }
         }
@@ -209,17 +207,23 @@ fn main() -> AppResult<()> {
         );
         let mut outputfile = File::create(&outputfile_name)?;
         eprintln!("Writing {}", outputfile_name);
-        for object_name in router_config.filters.iter() {
-            let config = match router_config.style.as_str() {
-                "prefix-set" => prefix_set_configs
-                    .get::<str>(object_name.as_str()),
-                "prefix-list" => prefix_list_configs
-                    .get::<str>(object_name.as_str()),
-                unknown => Err(format!("unknown style: {}", unknown))?,
-            };
-            if let Some(config) = config {
-                outputfile.write_all(config.as_bytes())?;
+        match router_config.style.as_str() {
+            "prefix-set" => {
+                for object_name in router_config.filters.iter() {
+                    if let Some(config) = prefix_set_configs.get::<str>(object_name.as_str()) {
+                        outputfile.write_all(config.as_bytes())?;
+                    }
+                }
             }
+            "prefix-list" => {
+                for object_name in router_config.filters.iter() {
+                    if let Some(config) = prefix_list_configs.get::<str>(object_name.as_str()) {
+                        outputfile.write_all(config.as_bytes())?;
+                    }
+                }
+                writeln!(&mut outputfile, "end")?;
+            }
+            unknown => Err(format!("unknown style: {}", unknown))?,
         }
     }
 
