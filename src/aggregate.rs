@@ -1,13 +1,9 @@
 use std::net::IpAddr;
 use std::str::FromStr;
-
-
 use std::cmp::{max, min};
 use std::error::Error;
 use std::fmt;
 use std::mem;
-//use std::net::IpAddr;
-//use std::str::FromStr;
 use super::*;
 
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
@@ -35,7 +31,7 @@ impl Entry {
 }
 
 impl Entry {
-    fn from_prefix((ip, masklen): &Prefix) -> Self {
+    pub fn from_prefix((ip, masklen): &Prefix) -> Self {
         Entry {
             prefix: *ip,
             mask: *masklen,
@@ -44,17 +40,23 @@ impl Entry {
             valid: true,
         }
     }
+
+    pub fn fmt_cisco(&self) -> FmtCiscoEntry {
+        FmtCiscoEntry(self)
+    }
 }
 
-impl fmt::Display for Entry {
+pub struct FmtCiscoEntry<'a>(&'a Entry);
+
+impl<'a> fmt::Display for FmtCiscoEntry<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.valid {
-            write!(f, "{}/{}", self.prefix, self.mask)?;
-            if self.mask != self.min {
-                write!(f, " ge {}", self.min)?;
+        if self.0.valid {
+            write!(f, "{}/{}", self.0.prefix, self.0.mask)?;
+            if self.0.mask != self.0.min {
+                write!(f, " ge {}", self.0.min)?;
             }
-            if self.mask != self.max {
-                write!(f, " le {}", self.max)?;
+            if self.0.mask != self.0.max {
+                write!(f, " le {}", self.0.max)?;
             }
             Ok(())
         } else {

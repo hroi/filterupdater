@@ -20,8 +20,8 @@ struct RootConfig {
 struct GlobalConfig {
     server: String,
     outputdir: String,
-    sources: Vec<String>,
     aggregate: bool,
+    sources: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -47,7 +47,7 @@ fn main() -> AppResult<()> {
                 .unwrap()
                 .to_string_lossy()
         );
-        process::exit(-1);
+        process::exit(1);
     };
     let mut config_file = File::open(config_file_name)?;
     let mut file_contents = String::new();
@@ -94,6 +94,19 @@ fn main() -> AppResult<()> {
     let generated_at = generated_at.rfc3339();
     let mut prefix_set_configs: HashMap<&str, String> = Default::default();
     let mut prefix_list_configs: HashMap<&str, String> = Default::default();
+
+    let mut prefix_set_names: HashSet<&str> = Default::default();
+    let mut prefix_list_names: HashSet<&str> = Default::default();
+
+    root_config.routers.iter().for_each(|r| {
+        let iter = r.filters.iter().map(|name| name.as_str());
+        match r.style.as_str() {
+            "prefix-set" => prefix_set_names.extend(iter),
+            "prefix-list" => prefix_list_names.extend(iter),
+            _ => (),
+        };
+    });
+
     for object_name in objects.iter() {
         let mut prefix_set: HashSet<Prefix> = Default::default();
 
@@ -113,112 +126,31 @@ fn main() -> AppResult<()> {
         }
 
         let mut prefix_list: Vec<&Prefix> = prefix_set.iter().collect();
-        prefix_list.sort();
 
-        if root_config.global.aggregate {
-            let mut prefix_list = aggregate::aggregate(&prefix_list[..]);
+        let mut prefix_list: Vec<aggregate::Entry> = if root_config.global.aggregate {
             prefix_list.sort();
-
-            if root_config.routers.iter().any(|r| r.style == "prefix-set") {
-                let mut prefix_set_config = String::new();
-                writeln!(
-                    &mut prefix_set_config,
-                    "no prefix-set {}\nprefix-set {}\n # Generated at {}",
-                    object_name, object_name, &generated_at
-                )?;
-                let mut first = true;
-                for prefix in prefix_list.iter() {
-                    if first {
-                        write!(&mut prefix_set_config, " {}", prefix)?;
-                        first = false;
-                    } else {
-                        write!(&mut prefix_set_config, ",\n {}", prefix)?;
-                    }
-                }
-                writeln!(&mut prefix_set_config, "\nend-set")?;
-                prefix_set_configs.insert(object_name, prefix_set_config);
-            }
-
-            if root_config.routers.iter().any(|r| r.style == "prefix-list") {
-                let mut prefix_list_config = String::new();
-                writeln!(&mut prefix_list_config, "no ip prefix-list {}", object_name)?;
-                writeln!(
-                    &mut prefix_list_config,
-                    "ip prefix-list {} description Generated at {}",
-                    object_name, &generated_at
-                )?;
-                writeln!(
-                    &mut prefix_list_config,
-                    "no ipv6 prefix-list {}",
-                    object_name
-                )?;
-                writeln!(
-                    &mut prefix_list_config,
-                    "ipv6 prefix-list {} description Generated at {}",
-                    object_name, &generated_at
-                )?;
-                for prefix in prefix_list.iter() {
-                    if prefix.prefix.is_ipv4() {
-                        writeln!(
-                            &mut prefix_list_config,
-                            "ip prefix-list {} permit {}",
-                            object_name, prefix
-                        )?;
-                    } else {
-                        writeln!(
-                            &mut prefix_list_config,
-                            "ipv6 prefix-list {} permit {}",
-                            object_name, prefix
-                        )?;
-                    }
-                }
-                prefix_list_configs.insert(object_name, prefix_list_config);
-            }
+            aggregate::aggregate(&prefix_list[..])
         } else {
-            if root_config.routers.iter().any(|r| r.style == "prefix-set") {
-                let mut prefix_set_config = String::new();
-                writeln!(
-                    &mut prefix_set_config,
-                    "no prefix-set {}\nprefix-set {}",
-                    object_name, object_name
-                )?;
-                let mut first = true;
-                for prefix in prefix_list.iter() {
-                    if first {
-                        write!(&mut prefix_set_config, " {}/{}", prefix.0, prefix.1)?;
-                        first = false;
-                    } else {
-                        write!(&mut prefix_set_config, ",\n {}/{}", prefix.0, prefix.1)?;
-                    }
-                }
-                writeln!(&mut prefix_set_config, "\nend-set")?;
-                prefix_set_configs.insert(object_name, prefix_set_config);
-            }
-            if root_config.routers.iter().any(|r| r.style == "prefix-list") {
-                let mut prefix_list_config = String::new();
-                writeln!(&mut prefix_list_config, "no ip prefix-list {}", object_name)?;
-                writeln!(
-                    &mut prefix_list_config,
-                    "no ipv6 prefix-list {}",
-                    object_name
-                )?;
-                for prefix in prefix_list.iter() {
-                    if prefix.0.is_ipv4() {
-                        writeln!(
-                            &mut prefix_list_config,
-                            "ip prefix-list {} permit {}/{}",
-                            object_name, prefix.0, prefix.1
-                        )?;
-                    } else {
-                        writeln!(
-                            &mut prefix_list_config,
-                            "ipv6 prefix-list {} permit {}/{}",
-                            object_name, prefix.0, prefix.1
-                        )?;
-                    }
-                }
-                prefix_list_configs.insert(object_name, prefix_list_config);
-            }
+            prefix_list
+                .iter()
+                .map(|p| aggregate::Entry::from_prefix(p))
+                .collect()
+        };
+        prefix_list.sort();
+        let comment: String = format!("Generated at {}", generated_at);
+
+        if prefix_set_names.contains(object_name) {
+            let mut prefix_set_config = String::new();
+            let formatter = format::CiscoPrefixSet(object_name, &comment, &prefix_list[..]);
+            write!(&mut prefix_set_config, "{}", formatter)?;
+            prefix_set_configs.insert(object_name, prefix_set_config);
+        }
+
+        if prefix_list_names.contains(object_name) {
+            let mut prefix_list_config = String::new();
+            let formatter = format::CiscoPrefixList(object_name, &comment, &prefix_list[..]);
+            write!(&mut prefix_list_config, "{}", formatter)?;
+            prefix_list_configs.insert(object_name, prefix_list_config);
         }
     }
 
