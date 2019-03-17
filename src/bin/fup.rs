@@ -95,17 +95,17 @@ fn main() -> AppResult<()> {
     let mut prefix_set_configs: HashMap<&str, String> = Default::default();
     let mut prefix_list_configs: HashMap<&str, String> = Default::default();
 
-    let mut prefix_set_names: HashSet<&str> = Default::default();
-    let mut prefix_list_names: HashSet<&str> = Default::default();
-
-    root_config.routers.iter().for_each(|r| {
+    for r in root_config.routers.iter() {
         let iter = r.filters.iter().map(|name| name.as_str());
-        match r.style.as_str() {
-            "prefix-set" => prefix_set_names.extend(iter),
-            "prefix-list" => prefix_list_names.extend(iter),
-            _ => (),
+        let target = match r.style.as_str() {
+            "prefix-set" => &mut prefix_set_configs,
+            "prefix-list" => &mut prefix_list_configs,
+            style => Err(format!("Unknow output style {}", style))?,
         };
-    });
+        iter.for_each(|f| {
+            target.entry(f).or_insert_with(String::new);
+        });
+    }
 
     for object_name in objects.iter() {
         let mut prefix_set: HashSet<Prefix> = Default::default();
@@ -127,7 +127,7 @@ fn main() -> AppResult<()> {
 
         let mut prefix_list: Vec<&Prefix> = prefix_set.iter().collect();
 
-        let mut prefix_list: Vec<aggregate::Entry> = if root_config.global.aggregate {
+        let mut entry_list: Vec<aggregate::Entry> = if root_config.global.aggregate {
             prefix_list.sort();
             aggregate::aggregate(&prefix_list[..])
         } else {
@@ -136,21 +136,17 @@ fn main() -> AppResult<()> {
                 .map(|p| aggregate::Entry::from_prefix(p))
                 .collect()
         };
-        prefix_list.sort();
+        entry_list.sort();
         let comment: String = format!("Generated at {}", generated_at);
 
-        if prefix_set_names.contains(object_name) {
-            let mut prefix_set_config = String::new();
-            let formatter = format::CiscoPrefixSet(object_name, &comment, &prefix_list[..]);
-            write!(&mut prefix_set_config, "{}", formatter)?;
-            prefix_set_configs.insert(object_name, prefix_set_config);
+        if let Some(mut prefix_set_config) = prefix_set_configs.get_mut(object_name) {
+            let fmt = format::CiscoPrefixSet(object_name, &comment, &entry_list[..]);
+            write!(&mut prefix_set_config, "{}", fmt)?;
         }
 
-        if prefix_list_names.contains(object_name) {
-            let mut prefix_list_config = String::new();
-            let formatter = format::CiscoPrefixList(object_name, &comment, &prefix_list[..]);
-            write!(&mut prefix_list_config, "{}", formatter)?;
-            prefix_list_configs.insert(object_name, prefix_list_config);
+        if let Some(mut prefix_list_config) = prefix_list_configs.get_mut(object_name) {
+            let fmt = format::CiscoPrefixList(object_name, &comment, &entry_list[..]);
+            write!(&mut prefix_list_config, "{}", fmt)?;
         }
     }
 
@@ -177,7 +173,7 @@ fn main() -> AppResult<()> {
                 }
                 writeln!(&mut outputfile, "end")?;
             }
-            unknown => Err(format!("unknown style: {}", unknown))?,
+            unknown => Err(format!("Unknown style: {}", unknown))?,
         }
         rename(&temp_name, &outputfile_name)?;
         eprintln!("Wrote {}", outputfile_name);
