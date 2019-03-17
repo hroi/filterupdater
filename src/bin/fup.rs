@@ -1,13 +1,13 @@
-#[macro_use]
-extern crate serde_derive;
-extern crate time;
-extern crate toml;
-
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs::{rename, File};
 use std::io::prelude::*;
 use std::process;
+
+use fup::*;
+use serde_derive::Deserialize;
+use time;
+use toml;
 
 #[derive(Debug, Deserialize)]
 struct RootConfig {
@@ -29,9 +29,6 @@ struct RouterConfig {
     style: String,
     filters: Vec<String>,
 }
-
-use fup::*;
-use radb::*;
 
 fn main() -> AppResult<()> {
     let mut args = env::args();
@@ -64,7 +61,7 @@ fn main() -> AppResult<()> {
     let mut q_sets: HashSet<&str> = Default::default();
     let mut q_nums: HashSet<u32> = Default::default();
     for o in objects.iter() {
-        if let Ok(num) = parse_autnum(o) {
+        if let Ok(num) = radb::parse_autnum(o) {
             q_nums.insert(num);
         } else {
             q_sets.insert(o);
@@ -72,7 +69,7 @@ fn main() -> AppResult<()> {
     }
 
     let start_time = time::SteadyTime::now();
-    let mut client = RadbClient::open(
+    let mut client = radb::RadbClient::open(
         root_config.global.server,
         &root_config.global.sources.join(","),
     )?;
@@ -109,7 +106,7 @@ fn main() -> AppResult<()> {
     for object_name in objects.iter() {
         let mut prefix_set: HashSet<Prefix> = Default::default();
 
-        if let Ok(num) = parse_autnum(object_name) {
+        if let Ok(num) = radb::parse_autnum(object_name) {
             prefix_set.extend(asprefixes[&num].iter());
         } else {
             prefix_set.extend(

@@ -1,10 +1,11 @@
-use std::net::IpAddr;
-use std::str::FromStr;
 use std::cmp::{max, min};
 use std::error::Error;
 use std::fmt;
 use std::mem;
-use super::*;
+use std::net::IpAddr;
+use std::str::FromStr;
+
+use crate::Prefix;
 
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
 pub struct Entry {

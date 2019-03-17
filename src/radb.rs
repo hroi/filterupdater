@@ -1,16 +1,15 @@
 use std::collections::HashMap;
 use std::io::prelude::*;
 use std::io::{self, Error, ErrorKind::*};
-use std::net::TcpStream;
+use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::time::Duration;
+
+use crate::{AppResult, Prefix};
+use bufstream::BufStream;
 
 // Docs:
 // https://www.radb.net/support/tutorials/query-options-flags.html
 // ftp://ftp.grnet.gr/pub/net/irrd/irrd-user.pdf - Appendix B
-use super::*;
-
-use bufstream::BufStream;
-use std::net::{SocketAddr, ToSocketAddrs};
 
 pub struct RadbClient {
     stream: BufStream<TcpStream>,

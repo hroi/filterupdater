@@ -1,5 +1,6 @@
-use super::aggregate::Entry;
 use std::fmt;
+
+use crate::aggregate::Entry;
 
 pub struct CiscoPrefixList<'a>(pub &'a str, pub &'a str, pub &'a [Entry]);
 pub struct CiscoPrefixSet<'a>(pub &'a str, pub &'a str, pub &'a [Entry]);
