@@ -6,9 +6,7 @@ pub struct CiscoPrefixSet<'a>(pub &'a str, pub &'a str, pub &'a [Entry]);
 
 impl<'a> fmt::Display for CiscoPrefixList<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let name = self.0;
-        let comment = self.1;
-        let list = self.2;
+        let (name, comment, list) = (self.0, self.1, self.2);
         writeln!(f, "no ip prefix-list {}", name)?;
         writeln!(f, "no ipv6 prefix-list {}", name)?;
         writeln!(f, "ip prefix-list {} description {}", name, comment)?;
@@ -26,9 +24,7 @@ impl<'a> fmt::Display for CiscoPrefixList<'a> {
 
 impl<'a> fmt::Display for CiscoPrefixSet<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let name = self.0;
-        let comment = self.1;
-        let list = self.2;
+        let (name, comment, list) = (self.0, self.1, self.2);
         writeln!(f, "no prefix-set {}", name)?;
         writeln!(f, "prefix-set {}\n # {}", name, comment)?;
         let mut first = true;
@@ -40,7 +36,6 @@ impl<'a> fmt::Display for CiscoPrefixSet<'a> {
                 write!(f, ",\n {}", prefix)?;
             }
         }
-        writeln!(f, "\nend-set")?;
-        Ok(())
+        writeln!(f, "\nend-set")
     }
 }
