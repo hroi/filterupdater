@@ -5,7 +5,6 @@ extern crate toml;
 
 use std::collections::{HashMap, HashSet};
 use std::env;
-use std::fmt::Write as WriteFmt;
 use std::fs::{rename, File};
 use std::io::prelude::*;
 use std::process;
@@ -103,7 +102,7 @@ fn main() -> AppResult<()> {
             style => Err(format!("Unknow output style {}", style))?,
         };
         iter.for_each(|f| {
-            target.entry(f).or_insert_with(String::new);
+            target.entry(f).or_default();
         });
     }
 
@@ -139,15 +138,12 @@ fn main() -> AppResult<()> {
         entry_list.sort();
         let comment: String = format!("Generated at {}", generated_at);
 
-        if let Some(mut prefix_set_config) = prefix_set_configs.get_mut(object_name) {
-            let fmt = format::CiscoPrefixSet(object_name, &comment, &entry_list[..]);
-            write!(&mut prefix_set_config, "{}", fmt)?;
-        }
-
-        if let Some(mut prefix_list_config) = prefix_list_configs.get_mut(object_name) {
-            let fmt = format::CiscoPrefixList(object_name, &comment, &entry_list[..]);
-            write!(&mut prefix_list_config, "{}", fmt)?;
-        }
+        prefix_set_configs.entry(object_name).and_modify(|s| {
+            *s = format::CiscoPrefixSet(object_name, &comment, &entry_list[..]).to_string()
+        });
+        prefix_list_configs.entry(object_name).and_modify(|s| {
+            *s = format::CiscoPrefixList(object_name, &comment, &entry_list[..]).to_string()
+        });
     }
 
     for router_config in root_config.routers.iter() {
