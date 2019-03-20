@@ -1,10 +1,9 @@
-use std::collections::HashMap;
 use std::io::prelude::*;
 use std::io::{self, Error, ErrorKind::*};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
-use crate::{AppResult, Prefix};
+use crate::{AppResult, Prefix, Map};
 use bufstream::BufStream;
 
 // Docs:
@@ -99,8 +98,8 @@ impl RadbClient {
     pub fn resolve_as_sets<'a, I: Iterator<Item = &'a &'a str> + Clone>(
         &mut self,
         sets: I,
-    ) -> AppResult<HashMap<&'a str, Vec<u32>>> {
-        let mut ret: HashMap<&str, Vec<u32>> = HashMap::new();
+    ) -> AppResult<Map<&'a str, Vec<u32>>> {
+        let mut ret: Map<&str, Vec<u32>> = Map::new();
         for set in sets.clone() {
             writeln!(self.stream, "!i{},1", set)?;
         }
@@ -124,12 +123,12 @@ impl RadbClient {
     pub fn resolve_autnums<'a, I: Iterator<Item = &'a u32> + Clone>(
         &mut self,
         autnums: I,
-    ) -> AppResult<HashMap<u32, Vec<Prefix>>> {
+    ) -> AppResult<Map<u32, Vec<Prefix>>> {
         for autnum in autnums.clone() {
             writeln!(self.stream, "!gas{}", autnum)?;
             writeln!(self.stream, "!6as{}", autnum)?;
         }
-        let mut ret = HashMap::new();
+        let mut ret = Map::new();
 
         self.stream.flush()?;
 

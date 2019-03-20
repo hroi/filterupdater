@@ -114,8 +114,7 @@ fn level_up(this: &mut Vec<Entry>, next: &mut Vec<Entry>) {
         did_change = false;
         this.sort();
         let mut this = &mut this[..];
-        while this.len() >= 2 {
-            let (a, rest) = this.split_first_mut().unwrap();
+        while let Some((a, rest)) = this.split_first_mut() {
             this = rest;
             if !a.valid {
                 continue;

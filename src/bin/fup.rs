@@ -1,4 +1,3 @@
-use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs::{rename, File};
 use std::io::prelude::*;
@@ -51,15 +50,15 @@ fn main() -> AppResult<()> {
     let root_config: RootConfig = toml::from_str(&file_contents)?;
     std::fs::create_dir_all(&root_config.global.outputdir)?;
 
-    let objects: HashSet<&str> = root_config
+    let objects: Set<&str> = root_config
         .routers
         .iter()
         .flat_map(|r| r.filters.iter())
         .map(|s| s.as_str())
         .collect();
 
-    let mut q_sets: HashSet<&str> = Default::default();
-    let mut q_nums: HashSet<u32> = Default::default();
+    let mut q_sets: Set<&str> = Default::default();
+    let mut q_nums: Set<u32> = Default::default();
     for o in objects.iter() {
         if let Ok(num) = radb::parse_autnum(o) {
             q_nums.insert(num);
@@ -88,8 +87,8 @@ fn main() -> AppResult<()> {
 
     let generated_at = time::now_utc();
     let generated_at = generated_at.rfc3339();
-    let mut prefix_set_configs: HashMap<&str, String> = Default::default();
-    let mut prefix_list_configs: HashMap<&str, String> = Default::default();
+    let mut prefix_set_configs: Map<&str, String> = Default::default();
+    let mut prefix_list_configs: Map<&str, String> = Default::default();
 
     for r in root_config.routers.iter() {
         let iter = r.filters.iter().map(|name| name.as_str());
@@ -104,7 +103,7 @@ fn main() -> AppResult<()> {
     }
 
     for object_name in objects.iter() {
-        let mut prefix_set: HashSet<Prefix> = Default::default();
+        let mut prefix_set: Set<Prefix> = Default::default();
 
         if let Ok(num) = radb::parse_autnum(object_name) {
             prefix_set.extend(asprefixes[&num].iter());
