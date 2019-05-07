@@ -112,7 +112,7 @@ fn level_up(this: &mut Vec<Entry>, next: &mut Vec<Entry>) {
     let mut did_change = true;
     while did_change {
         did_change = false;
-        this.sort();
+        this.sort_unstable();
         let mut this = &mut this[..];
         while let Some((a, rest)) = this.split_first_mut() {
             this = rest;

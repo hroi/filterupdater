@@ -123,7 +123,7 @@ fn main() -> AppResult<()> {
         let mut prefix_list: Vec<&Prefix> = prefix_set.iter().collect();
 
         let mut entry_list: Vec<aggregate::Entry> = if root_config.global.aggregate {
-            prefix_list.sort();
+            prefix_list.sort_unstable();
             aggregate::aggregate(&prefix_list[..])
         } else {
             prefix_list
@@ -131,7 +131,7 @@ fn main() -> AppResult<()> {
                 .map(|p| aggregate::Entry::from_prefix(p))
                 .collect()
         };
-        entry_list.sort();
+        entry_list.sort_unstable();
         let comment: String = format!("Generated at {}", generated_at);
 
         prefix_set_configs.entry(object_name).and_modify(|s| {
