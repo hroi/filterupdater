@@ -3,7 +3,7 @@ use std::io::{self, Error, ErrorKind::*};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
-use crate::{AppResult, Prefix, Map};
+use crate::{AppResult, Map, Prefix};
 use bufstream::BufStream;
 
 // Docs:
@@ -99,6 +99,7 @@ impl RadbClient {
         &mut self,
         sets: I,
     ) -> AppResult<Map<&'a str, Vec<u32>>> {
+
         let mut ret: Map<&str, Vec<u32>> = Map::new();
         for set in sets.clone() {
             writeln!(self.stream, "!i{},1", set)?;
@@ -114,6 +115,28 @@ impl RadbClient {
                         0 | 23_456 | 64_496...65_535 | 4_200_000_000...4_294_967_294 => continue,
                         valid => autnums.push(valid),
                     }
+                }
+            }
+        }
+        Ok(ret)
+    }
+
+    pub fn resolve_rt_sets<'a, I: Iterator<Item = &'a &'a str> + Clone>(
+        &mut self,
+        sets: I,
+    ) -> AppResult<Map<&'a str, Vec<Prefix>>> {
+
+        let mut ret: Map<&str, Vec<Prefix>> = Map::new();
+        for set in sets.clone() {
+            writeln!(self.stream, "!i{},1", set)?;
+        }
+        self.stream.flush()?;
+        for set in sets.clone() {
+            let prefixlist = ret.entry(*set).or_insert_with(|| vec![]);
+            if let Some(reply) = self.read_reply()? {
+                for elem in reply.split_whitespace() {
+                    let prefix = parse_prefix(elem)?;
+                    prefixlist.push(prefix);
                 }
             }
         }
