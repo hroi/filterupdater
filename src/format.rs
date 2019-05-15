@@ -29,7 +29,7 @@ impl<'a> fmt::Display for CiscoPrefixSet<'a> {
         writeln!(f, "no prefix-set {}", name)?;
         writeln!(f, "prefix-set {}\n # {}", name, comment)?;
         let mut first = true;
-        for prefix in list.iter().map(|p| p.fmt_cisco()) {
+        for prefix in list.iter().map(Entry::fmt_cisco) {
             if first {
                 write!(f, " {}", prefix)?;
                 first = false;

@@ -71,14 +71,14 @@ impl<'a> TryFrom<&'a str> for Query<'a> {
                     Ok(Query::RouteSet(_)) => return Ok(Query::RouteSet(input)),
                 }
             }
-            return Err(InvalidQuery(input.to_string()))
+            Err(InvalidQuery(input.to_string()))
         } else {
             parse_nonhier_name(input)
         }
     }
 }
 
-fn parse_nonhier_name<'a>(input: &'a str) -> Result<Query<'a>, InvalidQuery> {
+fn parse_nonhier_name(input: &str) -> Result<Query, InvalidQuery> {
     match input.get(0..3) {
         Some(name) if name.eq_ignore_ascii_case("as-") => Ok(Query::AsSet(input)),
         Some(name) if name.eq_ignore_ascii_case("rs-") => Ok(Query::RouteSet(input)),
@@ -114,7 +114,7 @@ fn main() -> AppResult<()> {
         .routers
         .iter()
         .flat_map(|router| router.filters.iter())
-        .map(|s| s.as_str())
+        .map(String::as_str)
         .collect();
 
     let queries: Result<Set<Query>, InvalidQuery> =
@@ -161,7 +161,7 @@ fn main() -> AppResult<()> {
     let mut prefix_list_configs: Map<&str, String> = Default::default();
 
     for r in root_config.routers.iter() {
-        let iter = r.filters.iter().map(|name| name.as_str());
+        let iter = r.filters.iter().map(String::as_str);
         let target = match r.style.as_str() {
             "prefix-set" => &mut prefix_set_configs,
             "prefix-list" => &mut prefix_list_configs,
