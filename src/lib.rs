@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 pub mod aggregate;
 pub mod format;
 pub mod radb;

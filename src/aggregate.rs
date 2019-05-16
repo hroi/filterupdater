@@ -145,23 +145,23 @@ fn level_up(this: &mut Vec<Entry>, next: &mut Vec<Entry>) {
 }
 
 pub fn aggregate(prefixes: &[&Prefix]) -> Vec<Entry> {
+
     let prefixes: Vec<_> = prefixes.iter().map(|p| Entry::from_prefix(p)).collect();
     let mut levels = Vec::<Vec<Entry>>::new();
     levels.resize_with(129, Default::default);
-    for prefix in prefixes.iter() {
+    prefixes.iter().for_each(|prefix| {
         levels[prefix.mask as usize].push(prefix.clone());
-    }
-    for cur in (1..=128).rev() {
+    });
+    (1..=128).rev().for_each(|cur| {
         let mut this = mem::replace(&mut levels[cur], vec![]);
         let mut next = mem::replace(&mut levels[cur - 1], vec![]);
 
         level_up(&mut this, &mut next);
         mem::replace(&mut levels[cur], this);
         mem::replace(&mut levels[cur - 1], next);
-    }
-    let mut filter = Vec::new();
-    for entries in levels {
-        filter.extend(entries.into_iter().filter(|e| e.valid));
-    }
-    filter
+    });
+    levels
+        .into_iter()
+        .flat_map(IntoIterator::into_iter)
+        .filter(|entry| entry.valid).collect()
 }

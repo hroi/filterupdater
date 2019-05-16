@@ -136,7 +136,7 @@ fn main() -> AppResult<()> {
 
     let start_time = time::SteadyTime::now();
     let mut client = radb::RadbClient::open(
-        root_config.global.server,
+        &root_config.global.server,
         &root_config.global.sources.join(","),
     )?;
     eprintln!("Connected to {}.", client.peer_addr()?);
@@ -150,13 +150,11 @@ fn main() -> AppResult<()> {
     let asprefixes = client.resolve_autnums(q_autnums.iter())?;
     let elapsed = time::SteadyTime::now() - start_time;
     eprintln!(
-        "{} objects downloaded in {:.3} s.",
-        q_as_sets.len() + q_autnums.len(),
+        "{} objects downloaded in {:.2} s.",
+        q_as_sets.len() + q_rt_sets.len() + q_autnums.len(),
         f64::from(elapsed.num_milliseconds() as u32) / 1000.0
     );
 
-    let generated_at = time::now_utc();
-    let generated_at = generated_at.rfc3339();
     let mut prefix_set_configs: Map<&str, String> = Default::default();
     let mut prefix_list_configs: Map<&str, String> = Default::default();
 
@@ -172,10 +170,13 @@ fn main() -> AppResult<()> {
         });
     }
 
-    for filter_name in filters.iter() {
+    let generated_at = time::now_utc();
+    let generated_at = generated_at.rfc3339();
+
+    filters.iter().for_each(|filter_name| {
         let mut prefix_set: Set<Prefix> = Default::default();
 
-        match Query::try_from(*filter_name)? {
+        match Query::try_from(*filter_name).unwrap() {
             Query::AsSet(name) => {
                 prefix_set.extend(
                     as_set_members[name]
@@ -193,30 +194,29 @@ fn main() -> AppResult<()> {
 
         if prefix_set.is_empty() {
             eprintln!("Warning: {} is empty, skipping", filter_name);
-            continue;
-        }
-
-        let mut prefix_list: Vec<&Prefix> = prefix_set.iter().collect();
-
-        let mut entry_list: Vec<aggregate::Entry> = if root_config.global.aggregate {
-            prefix_list.sort_unstable();
-            aggregate::aggregate(&prefix_list[..])
         } else {
-            prefix_list
-                .iter()
-                .map(|p| aggregate::Entry::from_prefix(p))
-                .collect()
-        };
-        entry_list.sort_unstable();
-        let comment: String = format!("Generated at {}", generated_at);
+            let mut prefix_list: Vec<&Prefix> = prefix_set.iter().collect();
 
-        prefix_set_configs.entry(filter_name).and_modify(|s| {
-            *s = format::CiscoPrefixSet(filter_name, &comment, &entry_list[..]).to_string()
-        });
-        prefix_list_configs.entry(filter_name).and_modify(|s| {
-            *s = format::CiscoPrefixList(filter_name, &comment, &entry_list[..]).to_string()
-        });
-    }
+            let mut entry_list: Vec<aggregate::Entry> = if root_config.global.aggregate {
+                prefix_list.sort_unstable();
+                aggregate::aggregate(&prefix_list[..])
+            } else {
+                prefix_list
+                    .iter()
+                    .map(|p| aggregate::Entry::from_prefix(p))
+                    .collect()
+            };
+            entry_list.sort_unstable();
+            let comment: String = format!("Generated at {}", generated_at);
+
+            prefix_set_configs.entry(filter_name).and_modify(|s| {
+                *s = format::CiscoPrefixSet(filter_name, &comment, &entry_list[..]).to_string()
+            });
+            prefix_list_configs.entry(filter_name).and_modify(|s| {
+                *s = format::CiscoPrefixList(filter_name, &comment, &entry_list[..]).to_string()
+            });
+        }
+    });
 
     for router_config in root_config.routers.iter() {
         let outputfile_name = format!(
