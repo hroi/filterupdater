@@ -1,8 +1,10 @@
 [package]
 name = "fup"
-version = "0.5.2"
+version = "0.6.0"
 authors = ["Hroi Sigurdsson <hroi@asdf.dk>"]
 edition = "2018"
+repository = "https://git.asdf.dk/hroi/filterupdater"
+license = "MIT"
 
 [dependencies]
 bufstream = "0.1"
