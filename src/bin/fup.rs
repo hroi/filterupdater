@@ -1,12 +1,16 @@
+#![forbid(unsafe_code)]
 use std::convert::TryFrom;
 use std::env;
-use std::error;
-use std::fmt;
+use std::fs;
 use std::fs::{rename, File};
 use std::io::prelude::*;
+use std::path::Path;
 use std::process;
 
-use fup::*;
+use fup::aggregate::{aggregate, AggPrefix};
+use fup::filterclass::{InvalidQuery, Query};
+use fup::format::{CiscoPrefixList, CiscoPrefixSet};
+use fup::{radb, AppResult, Map, Prefix, Set};
 use serde_derive::Deserialize;
 use time;
 use toml;
@@ -22,6 +26,9 @@ struct GlobalConfig {
     server: String,
     outputdir: String,
     aggregate: bool,
+    // radb,afrinic,ripe,ripe-nonauth,bell,apnic,nttcom,altdb,panix,risq,
+    // nestegg,level3,reach,aoltw,openface,arin,easynet,jpirr,host,rgnet,
+    // rogers,bboi,tc,canarie
     sources: Vec<String>,
 }
 
@@ -32,63 +39,6 @@ struct RouterConfig {
     filters: Vec<String>,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
-enum Query<'a> {
-    AsSet(&'a str),
-    RouteSet(&'a str),
-    AutNum(u32),
-}
-
-#[derive(Debug, PartialEq, Eq)]
-struct InvalidQuery(String);
-
-impl fmt::Display for InvalidQuery {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "invalid query: {:?}", self.0)
-    }
-}
-
-impl error::Error for InvalidQuery {}
-
-impl<'a> TryFrom<&'a str> for Query<'a> {
-    type Error = InvalidQuery;
-
-    fn try_from(input: &'a str) -> Result<Query<'a>, InvalidQuery> {
-        if input.contains(':') {
-            // From RFC 2622:
-            //   Set names can also be hierarchical.  A hierarchical set name is a
-            //   sequence of set names and AS numbers separated by colons ":".  At
-            //   least one component of such a name must be an actual set name (i.e.
-            //   start with one of the prefixes above).  All the set name components
-            //   of an hierarchical name has to be of the same type.  For example, the
-            //   following names are valid: AS1:AS-CUSTOMERS, AS1:RS-EXPORT:AS2, RS-
-            //   EXCEPTIONS:RS-BOGUS.
-            let elems = input.split(':');
-            for elem in elems {
-                match parse_nonhier_name(elem) {
-                    Ok(Query::AutNum(_)) | Err(_) => continue,
-                    Ok(Query::AsSet(_)) => return Ok(Query::AsSet(input)),
-                    Ok(Query::RouteSet(_)) => return Ok(Query::RouteSet(input)),
-                }
-            }
-            Err(InvalidQuery(input.to_string()))
-        } else {
-            parse_nonhier_name(input)
-        }
-    }
-}
-
-fn parse_nonhier_name(input: &str) -> Result<Query, InvalidQuery> {
-    match input.get(0..3) {
-        Some(name) if name.eq_ignore_ascii_case("as-") => Ok(Query::AsSet(input)),
-        Some(name) if name.eq_ignore_ascii_case("rs-") => Ok(Query::RouteSet(input)),
-        Some(name) if name[..2].eq_ignore_ascii_case("as") => {
-            input[2..].parse::<u32>().map(Query::AutNum).map_err(|_| InvalidQuery(input.to_string()))
-        },
-        _ => Err(InvalidQuery(input.to_string()))
-    }
-}
-
 fn main() -> AppResult<()> {
     let mut args = env::args();
     let progname = args.next().unwrap();
@@ -97,10 +47,7 @@ fn main() -> AppResult<()> {
     } else {
         eprintln!(
             "Usage: {} <config.toml>",
-            std::path::Path::new(&progname)
-                .file_name()
-                .unwrap()
-                .to_string_lossy()
+            Path::new(&progname).file_name().unwrap().to_string_lossy()
         );
         process::exit(1);
     };
@@ -108,7 +55,7 @@ fn main() -> AppResult<()> {
     let mut file_contents = String::new();
     config_file.read_to_string(&mut file_contents)?;
     let root_config: RootConfig = toml::from_str(&file_contents)?;
-    std::fs::create_dir_all(&root_config.global.outputdir)?;
+    fs::create_dir_all(&root_config.global.outputdir)?;
 
     let filters: Set<&str> = root_config
         .routers
@@ -141,13 +88,13 @@ fn main() -> AppResult<()> {
     )?;
     eprintln!("Connected to {}.", client.peer_addr()?);
 
-    let as_set_members = client.resolve_as_sets(q_as_sets.iter())?;
+    let as_set_members = client.resolve_as_sets(&q_as_sets)?;
 
     q_autnums.extend(as_set_members.values().flat_map(|s| s));
 
-    let rt_set_prefixes = client.resolve_rt_sets(q_rt_sets.iter())?;
+    let rt_set_prefixes = client.resolve_rt_sets(&q_rt_sets)?;
 
-    let asprefixes = client.resolve_autnums(q_autnums.iter())?;
+    let asprefixes = client.resolve_autnums(&q_autnums)?;
     let elapsed = time::SteadyTime::now() - start_time;
     eprintln!(
         "{} objects downloaded in {:.2} s.",
@@ -197,23 +144,23 @@ fn main() -> AppResult<()> {
         } else {
             let mut prefix_list: Vec<&Prefix> = prefix_set.iter().collect();
 
-            let mut entry_list: Vec<aggregate::Entry> = if root_config.global.aggregate {
+            let mut entry_list: Vec<AggPrefix> = if root_config.global.aggregate {
                 prefix_list.sort_unstable();
-                aggregate::aggregate(&prefix_list[..])
+                aggregate(&prefix_list[..])
             } else {
                 prefix_list
                     .iter()
-                    .map(|p| aggregate::Entry::from_prefix(p))
+                    .map(|p| AggPrefix::from_prefix(p))
                     .collect()
             };
             entry_list.sort_unstable();
             let comment: String = format!("Generated at {}", generated_at);
 
             prefix_set_configs.entry(filter_name).and_modify(|s| {
-                *s = format::CiscoPrefixSet(filter_name, &comment, &entry_list[..]).to_string()
+                *s = CiscoPrefixSet(filter_name, &comment, &entry_list[..]).to_string()
             });
             prefix_list_configs.entry(filter_name).and_modify(|s| {
-                *s = format::CiscoPrefixList(filter_name, &comment, &entry_list[..]).to_string()
+                *s = CiscoPrefixList(filter_name, &comment, &entry_list[..]).to_string()
             });
         }
     });

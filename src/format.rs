@@ -1,9 +1,9 @@
 use std::fmt;
 
-use crate::aggregate::Entry;
+use crate::aggregate::AggPrefix;
 
-pub struct CiscoPrefixList<'a>(pub &'a str, pub &'a str, pub &'a [Entry]);
-pub struct CiscoPrefixSet<'a>(pub &'a str, pub &'a str, pub &'a [Entry]);
+pub struct CiscoPrefixList<'a>(pub &'a str, pub &'a str, pub &'a [AggPrefix]);
+pub struct CiscoPrefixSet<'a>(pub &'a str, pub &'a str, pub &'a [AggPrefix]);
 
 impl<'a> fmt::Display for CiscoPrefixList<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -29,7 +29,7 @@ impl<'a> fmt::Display for CiscoPrefixSet<'a> {
         writeln!(f, "no prefix-set {}", name)?;
         writeln!(f, "prefix-set {}\n # {}", name, comment)?;
         let mut first = true;
-        for prefix in list.iter().map(Entry::fmt_cisco) {
+        for prefix in list.iter().map(AggPrefix::fmt_cisco) {
             if first {
                 write!(f, " {}", prefix)?;
                 first = false;

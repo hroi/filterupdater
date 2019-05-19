@@ -3,7 +3,7 @@ use std::io::{self, Error, ErrorKind::*};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
-use crate::{AppResult, Map, Prefix};
+use crate::{AppResult, Map, Prefix, Set};
 use bufstream::BufStream;
 
 // Docs:
@@ -44,9 +44,6 @@ impl RadbClient {
                     } else {
                         writeln!(client.stream, "!!\n!n{}-{}", Self::CLIENT, Self::VERSION,)
                     }?;
-                    // radb,afrinic,ripe,ripe-nonauth,bell,apnic,nttcom,altdb,panix,risq,
-                    // nestegg,level3,reach,aoltw,openface,arin,easynet,jpirr,host,rgnet,
-                    // rogers,bboi,tc,canarie
                     writeln!(client.stream, "!s{}", sources)?;
                     return Ok(client);
                 }
@@ -95,17 +92,17 @@ impl RadbClient {
         }
     }
 
-    pub fn resolve_as_sets<'a, I: Iterator<Item = &'a &'a str> + Clone>(
+    pub fn resolve_as_sets<'a>(
         &mut self,
-        sets: I,
+        sets: &Set<&'a str>,
     ) -> AppResult<Map<&'a str, Vec<u32>>> {
-
+        let iter = sets.iter();
         let mut ret: Map<&str, Vec<u32>> = Map::new();
-        for set in sets.clone() {
+        for set in iter.clone() {
             writeln!(self.stream, "!i{},1", set)?;
         }
         self.stream.flush()?;
-        for set in sets.clone() {
+        for set in iter.clone() {
             let autnums = ret.entry(set).or_insert_with(|| vec![]);
             if let Some(reply) = self.read_reply()? {
                 for autnum in reply.split_whitespace().map(|s| parse_autnum(s)) {
@@ -121,17 +118,17 @@ impl RadbClient {
         Ok(ret)
     }
 
-    pub fn resolve_rt_sets<'a, I: Iterator<Item = &'a &'a str> + Clone>(
+    pub fn resolve_rt_sets<'a>(
         &mut self,
-        sets: I,
+        sets: &'a Set<&str>,
     ) -> AppResult<Map<&'a str, Vec<Prefix>>> {
-
+        let iter = sets.iter();
         let mut ret: Map<&str, Vec<Prefix>> = Map::new();
-        for set in sets.clone() {
+        for set in iter.clone() {
             writeln!(self.stream, "!i{},1", set)?;
         }
         self.stream.flush()?;
-        for set in sets.clone() {
+        for set in iter.clone() {
             let prefixlist = ret.entry(*set).or_insert_with(|| vec![]);
             if let Some(reply) = self.read_reply()? {
                 for elem in reply.split_whitespace() {
@@ -143,11 +140,9 @@ impl RadbClient {
         Ok(ret)
     }
 
-    pub fn resolve_autnums<'a, I: Iterator<Item = &'a u32> + Clone>(
-        &mut self,
-        autnums: I,
-    ) -> AppResult<Map<u32, Vec<Prefix>>> {
-        for autnum in autnums.clone() {
+    pub fn resolve_autnums(&mut self, autnums: &Set<u32>) -> AppResult<Map<u32, Vec<Prefix>>> {
+        let iter = autnums.iter();
+        for autnum in iter.clone() {
             writeln!(self.stream, "!gas{}", autnum)?;
             writeln!(self.stream, "!6as{}", autnum)?;
         }
@@ -155,7 +150,7 @@ impl RadbClient {
 
         self.stream.flush()?;
 
-        for autnum in autnums.clone() {
+        for autnum in iter.clone() {
             let prefixlist = ret.entry(*autnum).or_insert_with(|| vec![]);
             for family in &[4, 6] {
                 if let Some(reply) = self.read_reply()? {

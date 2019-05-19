@@ -8,7 +8,7 @@ use std::str::FromStr;
 use crate::Prefix;
 
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
-pub struct Entry {
+pub struct AggPrefix {
     pub prefix: IpAddr,
     pub mask: u8,
     pub min: u8,
@@ -16,7 +16,7 @@ pub struct Entry {
     valid: bool,
 }
 
-impl Entry {
+impl AggPrefix {
     fn can_level_up_with(&self, other: &Self) -> bool {
         let overlaps = match (self.prefix, other.prefix) {
             (IpAddr::V4(a), IpAddr::V4(b)) => {
@@ -31,9 +31,9 @@ impl Entry {
     }
 }
 
-impl Entry {
+impl AggPrefix {
     pub fn from_prefix((ip, masklen): &Prefix) -> Self {
-        Entry {
+        AggPrefix {
             prefix: *ip,
             mask: *masklen,
             min: *masklen,
@@ -47,7 +47,7 @@ impl Entry {
     }
 }
 
-pub struct FmtCiscoEntry<'a>(&'a Entry);
+pub struct FmtCiscoEntry<'a>(&'a AggPrefix);
 
 impl<'a> fmt::Display for FmtCiscoEntry<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -66,15 +66,15 @@ impl<'a> fmt::Display for FmtCiscoEntry<'a> {
     }
 }
 
-impl FromStr for Entry {
+impl FromStr for AggPrefix {
     type Err = Box<Error>;
 
-    fn from_str(s: &str) -> Result<Entry, Self::Err> {
+    fn from_str(s: &str) -> Result<AggPrefix, Self::Err> {
         let mut elems = s.split('/');
         if let (Some(ip), Some(mask), None) = (elems.next(), elems.next(), elems.next()) {
             let prefix = ip.parse()?;
             let mask = mask.parse()?;
-            Ok(Entry {
+            Ok(AggPrefix {
                 prefix,
                 mask,
                 min: mask,
@@ -87,7 +87,7 @@ impl FromStr for Entry {
     }
 }
 
-fn touching(this: &Entry, that: &Entry) -> bool {
+fn touching(this: &AggPrefix, that: &AggPrefix) -> bool {
     match (this.prefix, that.prefix) {
         (IpAddr::V4(a), IpAddr::V4(b)) => {
             let wildcard_bits = 32 - u32::from(this.mask);
@@ -108,7 +108,7 @@ fn touching(this: &Entry, that: &Entry) -> bool {
     }
 }
 
-fn level_up(this: &mut Vec<Entry>, next: &mut Vec<Entry>) {
+fn level_up(this: &mut Vec<AggPrefix>, next: &mut Vec<AggPrefix>) {
     let mut did_change = true;
     while did_change {
         did_change = false;
@@ -144,10 +144,9 @@ fn level_up(this: &mut Vec<Entry>, next: &mut Vec<Entry>) {
     }
 }
 
-pub fn aggregate(prefixes: &[&Prefix]) -> Vec<Entry> {
-
-    let prefixes: Vec<_> = prefixes.iter().map(|p| Entry::from_prefix(p)).collect();
-    let mut levels = Vec::<Vec<Entry>>::new();
+pub fn aggregate(prefixes: &[&Prefix]) -> Vec<AggPrefix> {
+    let prefixes: Vec<_> = prefixes.iter().map(|p| AggPrefix::from_prefix(p)).collect();
+    let mut levels = Vec::<Vec<AggPrefix>>::new();
     levels.resize_with(129, Default::default);
     prefixes.iter().for_each(|prefix| {
         levels[prefix.mask as usize].push(prefix.clone());
@@ -163,5 +162,6 @@ pub fn aggregate(prefixes: &[&Prefix]) -> Vec<Entry> {
     levels
         .into_iter()
         .flat_map(IntoIterator::into_iter)
-        .filter(|entry| entry.valid).collect()
+        .filter(|entry| entry.valid)
+        .collect()
 }
