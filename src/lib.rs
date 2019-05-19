@@ -14,3 +14,7 @@ pub type Set<K> = HashSet<K>;
 
 pub type Prefix = (std::net::IpAddr, u8);
 pub type AppResult<T> = Result<T, Box<std::error::Error>>;
+
+pub const CLIENT: &'static str = env!("CARGO_PKG_NAME");
+pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+pub const GIT_HASH: Option<&'static str> = option_env!("GIT_HASH");

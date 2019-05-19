@@ -1,7 +1,8 @@
 [global]
 server = "whois.radb.net:43"
 sources = ["RADB", "RIPE", "APNIC"]
-aggregate = true
+aggregate  = true  # default = true
+timestamps = true  # default = false
 outputdir = "./output"
 
 [[routers]]
