@@ -29,6 +29,27 @@ impl AggPrefix {
         };
         overlaps && (self.min, self.max) == (other.min, other.max)
     }
+
+    fn touches(&self, other: &AggPrefix) -> bool {
+        match (self.prefix, other.prefix) {
+            (IpAddr::V4(a), IpAddr::V4(b)) => {
+                let wildcard_bits = 32 - u32::from(self.mask);
+                let ua = u32::from(a);
+                let ub = u32::from(b);
+                let next_prefix = ua + (1 << wildcard_bits);
+                ub <= next_prefix
+            }
+
+            (IpAddr::V6(a), IpAddr::V6(b)) => {
+                let wildcard_bits = 128 - u32::from(self.mask);
+                let ua = u128::from(a);
+                let ub = u128::from(b);
+                let next_prefix = ua + (1 << wildcard_bits);
+                ub <= next_prefix
+            }
+            _ => false,
+        }
+    }
 }
 
 impl AggPrefix {
@@ -87,27 +108,6 @@ impl FromStr for AggPrefix {
     }
 }
 
-fn touching(this: &AggPrefix, that: &AggPrefix) -> bool {
-    match (this.prefix, that.prefix) {
-        (IpAddr::V4(a), IpAddr::V4(b)) => {
-            let wildcard_bits = 32 - u32::from(this.mask);
-            let ua = u32::from(a);
-            let ub = u32::from(b);
-            let next_prefix = ua + (1 << wildcard_bits);
-            ub <= next_prefix
-        }
-
-        (IpAddr::V6(a), IpAddr::V6(b)) => {
-            let wildcard_bits = 128 - u32::from(this.mask);
-            let ua = u128::from(a);
-            let ub = u128::from(b);
-            let next_prefix = ua + (1 << wildcard_bits);
-            ub <= next_prefix
-        }
-        _ => false,
-    }
-}
-
 fn level_up(this: &mut Vec<AggPrefix>, next: &mut Vec<AggPrefix>) {
     let mut did_change = true;
     while did_change {
@@ -136,7 +136,7 @@ fn level_up(this: &mut Vec<AggPrefix>, next: &mut Vec<AggPrefix>) {
                     did_change = true;
                     continue;
                 }
-                if !touching(a, b) {
+                if !a.touches(b) {
                     break;
                 }
             }
