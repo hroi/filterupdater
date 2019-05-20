@@ -1,11 +1,11 @@
 #![forbid(unsafe_code)]
+
 use std::convert::TryFrom;
 use std::env;
-use std::fs;
-use std::fs::{rename, File};
+use std::fs::{create_dir_all, rename, File};
 use std::io::prelude::*;
 use std::path::Path;
-use std::process;
+use std::process::exit;
 
 use fup::aggregate::{aggregate, AggPrefix};
 use fup::filterclass::{InvalidQuery, Query};
@@ -50,13 +50,13 @@ fn main() -> AppResult<()> {
             "Usage: {} <config.toml>",
             Path::new(&progname).file_name().unwrap().to_string_lossy()
         );
-        process::exit(1);
+        exit(1);
     };
     let mut config_file = File::open(config_file_name)?;
     let mut file_contents = String::new();
     config_file.read_to_string(&mut file_contents)?;
     let root_config: RootConfig = toml::from_str(&file_contents)?;
-    fs::create_dir_all(&root_config.global.outputdir)?;
+    create_dir_all(&root_config.global.outputdir)?;
 
     let filters: Set<&str> = root_config
         .routers
@@ -74,8 +74,8 @@ fn main() -> AppResult<()> {
     let mut q_rt_sets: Set<&str> = Default::default();
     let mut q_autnums: Set<u32> = Default::default();
 
-    queries.iter().for_each(|q| {
-        match *q {
+    queries.into_iter().for_each(|q| {
+        match q {
             Query::AsSet(name) => q_as_sets.insert(name),
             Query::RouteSet(name) => q_rt_sets.insert(name),
             Query::AutNum(num) => q_autnums.insert(num),
@@ -106,7 +106,7 @@ fn main() -> AppResult<()> {
     eprintln!(
         "{} objects downloaded in {:.2} s.",
         q_as_sets.len() + q_rt_sets.len() + q_autnums.len(),
-        f64::from(elapsed.num_milliseconds() as u32) / 1000.0
+        elapsed.num_milliseconds() as f32 / 1000.0
     );
 
     let mut prefix_set_configs: Map<&str, String> = Default::default();
@@ -153,7 +153,6 @@ fn main() -> AppResult<()> {
         } else {
             let mut prefix_list: Vec<&Prefix> = prefix_set.iter().collect();
 
-
             let mut entry_list: Vec<AggPrefix> = if root_config.global.aggregate.unwrap_or(true) {
                 prefix_list.sort_unstable();
                 let ret = aggregate(&prefix_list[..]);
@@ -188,7 +187,10 @@ fn main() -> AppResult<()> {
     });
 
     if root_config.global.aggregate.unwrap_or(true) {
-        eprintln!("Aggregated {} prefixes into {} entries", nonagg_count, agg_count);
+        eprintln!(
+            "Aggregated {} prefixes into {} entries.",
+            nonagg_count, agg_count
+        );
     }
 
     for router_config in root_config.routers.iter() {

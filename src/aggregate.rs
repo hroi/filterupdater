@@ -30,7 +30,7 @@ impl AggPrefix {
         overlaps && (self.min, self.max) == (other.min, other.max)
     }
 
-    fn touches(&self, other: &AggPrefix) -> bool {
+    fn touches(&self, other: &Self) -> bool {
         match (self.prefix, other.prefix) {
             (IpAddr::V4(a), IpAddr::V4(b)) => {
                 let wildcard_bits = 32 - u32::from(self.mask);
