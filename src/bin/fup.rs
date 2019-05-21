@@ -96,11 +96,9 @@ fn main() -> AppResult<()> {
     eprintln!("Connected to {}.", client.peer_addr()?);
 
     let as_set_members = client.resolve_as_sets(&q_as_sets)?;
-
     q_autnums.extend(as_set_members.values().flat_map(|s| s));
 
     let rt_set_prefixes = client.resolve_rt_sets(&q_rt_sets)?;
-
     let asprefixes = client.resolve_autnums(&q_autnums)?;
     let elapsed = time::SteadyTime::now() - start_time;
     eprintln!(
@@ -194,32 +192,32 @@ fn main() -> AppResult<()> {
     }
 
     for router_config in root_config.routers.iter() {
-        let outputfile_name = format!(
+        let output_filename = format!(
             "{}/{}.txt",
             root_config.global.outputdir, router_config.hostname
         );
-        let temp_name = format!("{}.tmp", &outputfile_name);
-        let mut outputfile = File::create(&temp_name)?;
+        let temp_filename = format!("{}.tmp", &output_filename);
+        let mut output_file = File::create(&temp_filename)?;
         match router_config.style.as_str() {
             "prefix-set" => {
                 for object_name in router_config.filters.iter() {
-                    if let Some(config) = prefix_set_configs.get::<str>(object_name.as_str()) {
-                        outputfile.write_all(config.as_bytes())?;
+                    if let Some(config) = prefix_set_configs.get(object_name.as_str()) {
+                        output_file.write_all(config.as_bytes())?;
                     }
                 }
             }
             "prefix-list" => {
                 for object_name in router_config.filters.iter() {
-                    if let Some(config) = prefix_list_configs.get::<str>(object_name.as_str()) {
-                        outputfile.write_all(config.as_bytes())?;
+                    if let Some(config) = prefix_list_configs.get(object_name.as_str()) {
+                        output_file.write_all(config.as_bytes())?;
                     }
                 }
-                writeln!(&mut outputfile, "end")?;
+                writeln!(&mut output_file, "end")?;
             }
             unknown => Err(format!("Unknown style: {}", unknown))?,
         }
-        rename(&temp_name, &outputfile_name)?;
-        eprintln!("Wrote {}", outputfile_name);
+        rename(&temp_filename, &output_filename)?;
+        eprintln!("Wrote {}", output_filename);
     }
 
     Ok(())
