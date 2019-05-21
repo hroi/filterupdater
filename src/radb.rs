@@ -6,10 +6,11 @@ use std::time::Duration;
 use crate::{AppResult, Map, Prefix, Set};
 use bufstream::BufStream;
 
-// Docs:
-// https://www.radb.net/support/tutorials/query-options-flags.html
-// ftp://ftp.grnet.gr/pub/net/irrd/irrd-user.pdf - Appendix B
-
+/// RADB client.
+///
+/// Protocol docs:
+///  * https://www.radb.net/support/tutorials/query-options-flags.html
+///  * https://github.com/irrdnet/irrd/blob/master/irrd-user.pdf
 pub struct RadbClient {
     stream: BufStream<TcpStream>,
     buf: Vec<u8>,
@@ -59,6 +60,7 @@ impl RadbClient {
             self.buf.clear();
             let len = self.stream.read_until(b'\n', &mut self.buf)? - 1;
             match char::from(self.buf[0]) {
+                // successful query returning data
                 'A' => {
                     let len_bytes = &self.buf[1..len];
                     let content_len: usize = std::str::from_utf8(len_bytes)
@@ -70,14 +72,25 @@ impl RadbClient {
                         .map_err(|e| Error::new(InvalidData, e))?;
                     reply = Some(content);
                 }
+                // successful query returning no data
                 'C' => {
                     if reply.is_some() {
                         return Ok(reply);
                     }
                 }
+                // unsuccessful query - Key not found
                 'D' => {
                     return Ok(None);
                 }
+                // unsuccessful query - There are multiple copies of the key in one database
+                'E' => {
+                    return Err(Error::new(
+                        Other,
+                        "There are multiple copies of the key in one database",
+                    )
+                    .into())
+                }
+                // other error
                 'F' => {
                     return Err(
                         Error::new(Other, String::from_utf8_lossy(&self.buf[1..len])).into(),
