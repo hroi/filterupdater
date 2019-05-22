@@ -59,10 +59,10 @@ impl RadbClient {
         loop {
             self.buf.clear();
             let len = self.stream.read_until(b'\n', &mut self.buf)? - 1;
-            match char::from(self.buf[0]) {
+            match &self.buf[..len].split_first() {
                 // successful query returning data
-                'A' => {
-                    let len_bytes = &self.buf[1..len];
+                Some((b'A', data)) => {
+                    let len_bytes = data;
                     let content_len: usize = std::str::from_utf8(len_bytes)
                         .map_err(|e| Error::new(InvalidData, e))
                         .and_then(|s| s.parse().map_err(|e| Error::new(InvalidData, e)))?;
@@ -73,17 +73,17 @@ impl RadbClient {
                     reply = Some(content);
                 }
                 // successful query returning no data
-                'C' => {
+                Some((b'C', &[])) => {
                     if reply.is_some() {
                         return Ok(reply);
                     }
                 }
                 // unsuccessful query - Key not found
-                'D' => {
+                Some((b'D', &[])) => {
                     return Ok(None);
                 }
                 // unsuccessful query - There are multiple copies of the key in one database
-                'E' => {
+                Some((b'E', &[])) => {
                     return Err(Error::new(
                         Other,
                         "There are multiple copies of the key in one database",
@@ -91,12 +91,20 @@ impl RadbClient {
                     .into())
                 }
                 // other error
-                'F' => {
-                    return Err(
-                        Error::new(Other, String::from_utf8_lossy(&self.buf[1..len])).into(),
-                    );
+                Some((b'F', data)) => {
+                    return Err(Error::new(Other, String::from_utf8_lossy(data)).into());
                 }
-                code => Err(Error::new(InvalidData, format!("unknown code {:?}", code)))?,
+                Some((code, data)) => Err(Error::new(
+                    InvalidData,
+                    format!(
+                        "invalid reply: {:?} => {:?}",
+                        char::from(**code),
+                        String::from_utf8_lossy(data)
+                    ),
+                ))?,
+                None => {
+                    return Err(Error::new(Other, "short reply").into());
+                }
             };
         }
     }
@@ -127,7 +135,7 @@ impl RadbClient {
         Ok(ret)
     }
 
-    pub fn resolve_rt_sets<'a>(
+    pub fn resolve_route_sets<'a>(
         &mut self,
         sets: &'a Set<&str>,
     ) -> AppResult<Map<&'a str, Vec<Prefix>>> {

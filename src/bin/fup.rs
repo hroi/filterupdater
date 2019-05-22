@@ -2,13 +2,14 @@
 
 use std::convert::TryFrom;
 use std::env;
+use std::error;
 use std::fs::{create_dir_all, rename, File};
 use std::io::prelude::*;
 use std::path::Path;
 use std::process::exit;
 
 use fup::aggregate::{aggregate, AggPrefix};
-use fup::filterclass::{InvalidQuery, Query};
+use fup::filterclass::FilterClass;
 use fup::format::{CiscoPrefixList, CiscoPrefixSet};
 use fup::{radb, AppResult, Map, Prefix, Set};
 use serde_derive::Deserialize;
@@ -40,7 +41,14 @@ struct RouterConfig {
     filters: Vec<String>,
 }
 
-fn main() -> AppResult<()> {
+fn main() {
+    if let Err(e) = run() {
+        eprintln!("Error: {}", e);
+        exit(1);
+    }
+}
+
+fn run() -> AppResult<()> {
     let mut args = env::args();
     let progname = args.next().unwrap();
     let config_file_name = if let Some(arg) = args.next() {
@@ -52,11 +60,20 @@ fn main() -> AppResult<()> {
         );
         exit(1);
     };
-    let mut config_file = File::open(config_file_name)?;
+    let mut config_file = File::open(&config_file_name)
+        .map_err(|e| format!("failed to open {}: {}", &config_file_name, e))?;
     let mut file_contents = String::new();
-    config_file.read_to_string(&mut file_contents)?;
-    let root_config: RootConfig = toml::from_str(&file_contents)?;
-    create_dir_all(&root_config.global.outputdir)?;
+    config_file
+        .read_to_string(&mut file_contents)
+        .map_err(|e| format!("failed to read config: {}", e))?;
+    let root_config: RootConfig =
+        toml::from_str(&file_contents).map_err(|e| format!("failed to parse config: {}", e))?;
+    create_dir_all(&root_config.global.outputdir).map_err(|e| {
+        format!(
+            "failed to create output dir {}: {}",
+            &root_config.global.outputdir, e
+        )
+    })?;
 
     let filters: Set<&str> = root_config
         .routers
@@ -65,20 +82,20 @@ fn main() -> AppResult<()> {
         .map(String::as_str)
         .collect();
 
-    let queries: Result<Set<Query>, InvalidQuery> =
-        filters.iter().map(|s| Query::try_from(*s)).collect();
+    let queries: Result<Set<FilterClass>, Box<dyn error::Error>> =
+        filters.iter().map(|s| FilterClass::try_from(*s)).collect();
 
-    let queries = queries?;
+    let queries = queries.map_err(|e| format!("failed to parse filter name: {}", e))?;
 
-    let mut q_as_sets: Set<&str> = Default::default();
-    let mut q_rt_sets: Set<&str> = Default::default();
-    let mut q_autnums: Set<u32> = Default::default();
+    let mut as_set_queries: Set<&str> = Default::default();
+    let mut route_set_queries: Set<&str> = Default::default();
+    let mut autnum_queries: Set<u32> = Default::default();
 
     queries.into_iter().for_each(|q| {
         match q {
-            Query::AsSet(name) => q_as_sets.insert(name),
-            Query::RouteSet(name) => q_rt_sets.insert(name),
-            Query::AutNum(num) => q_autnums.insert(num),
+            FilterClass::AsSet(name) => as_set_queries.insert(name),
+            FilterClass::RouteSet(name) => route_set_queries.insert(name),
+            FilterClass::AutNum(num) => autnum_queries.insert(num),
         };
     });
 
@@ -92,18 +109,25 @@ fn main() -> AppResult<()> {
     let mut client = radb::RadbClient::open(
         &root_config.global.server,
         &root_config.global.sources.join(","),
-    )?;
+    )
+    .map_err(|e| format!("failed to connect to {}: {}", &root_config.global.server, e))?;
     eprintln!("Connected to {}.", client.peer_addr()?);
 
-    let as_set_members = client.resolve_as_sets(&q_as_sets)?;
-    q_autnums.extend(as_set_members.values().flat_map(|s| s));
+    let as_set_members = client
+        .resolve_as_sets(&as_set_queries)
+        .map_err(|e| format!("failed to resolve as-sets: {}", e))?;
+    autnum_queries.extend(as_set_members.values().flatten());
 
-    let rt_set_prefixes = client.resolve_rt_sets(&q_rt_sets)?;
-    let asprefixes = client.resolve_autnums(&q_autnums)?;
+    let route_set_prefixes = client
+        .resolve_route_sets(&route_set_queries)
+        .map_err(|e| format!("failed to resolve route-sets: {}", e))?;
+    let autnum_prefixes = client
+        .resolve_autnums(&autnum_queries)
+        .map_err(|e| format!("failed to resolve autnums: {}", e))?;
     let elapsed = time::SteadyTime::now() - start_time;
     eprintln!(
         "{} objects downloaded in {:.2} s.",
-        q_as_sets.len() + q_rt_sets.len() + q_autnums.len(),
+        as_set_queries.len() + route_set_queries.len() + autnum_queries.len(),
         elapsed.num_milliseconds() as f32 / 1000.0
     );
 
@@ -130,19 +154,19 @@ fn main() -> AppResult<()> {
     filters.iter().for_each(|filter_name| {
         let mut prefix_set: Set<Prefix> = Default::default();
 
-        match Query::try_from(*filter_name).unwrap() {
-            Query::AsSet(name) => {
+        match FilterClass::try_from(*filter_name).unwrap() {
+            FilterClass::AsSet(name) => {
                 prefix_set.extend(
                     as_set_members[name]
                         .iter()
-                        .flat_map(|num| asprefixes[num].iter()),
+                        .flat_map(|num| autnum_prefixes[num].iter()),
                 );
             }
-            Query::RouteSet(name) => {
-                prefix_set.extend(rt_set_prefixes[name].iter());
+            FilterClass::RouteSet(name) => {
+                prefix_set.extend(route_set_prefixes[name].iter());
             }
-            Query::AutNum(num) => {
-                prefix_set.extend(asprefixes[&num].iter());
+            FilterClass::AutNum(num) => {
+                prefix_set.extend(autnum_prefixes[&num].iter());
             }
         }
 
@@ -197,26 +221,33 @@ fn main() -> AppResult<()> {
             root_config.global.outputdir, router_config.hostname
         );
         let temp_filename = format!("{}.tmp", &output_filename);
-        let mut output_file = File::create(&temp_filename)?;
+        let mut output_file = File::create(&temp_filename)
+            .map_err(|e| format!("failed to create {}: {}", temp_filename, e))?;
         match router_config.style.as_str() {
             "prefix-set" => {
                 for object_name in router_config.filters.iter() {
                     if let Some(config) = prefix_set_configs.get(object_name.as_str()) {
-                        output_file.write_all(config.as_bytes())?;
+                        output_file
+                            .write_all(config.as_bytes())
+                            .map_err(|e| format!("failed to write to output file: {}", e))?;
                     }
                 }
             }
             "prefix-list" => {
                 for object_name in router_config.filters.iter() {
                     if let Some(config) = prefix_list_configs.get(object_name.as_str()) {
-                        output_file.write_all(config.as_bytes())?;
+                        output_file
+                            .write_all(config.as_bytes())
+                            .map_err(|e| format!("failed to write to output file: {}", e))?;
                     }
                 }
-                writeln!(&mut output_file, "end")?;
+                writeln!(&mut output_file, "end")
+                    .map_err(|e| format!("failed to write to output file: {}", e))?;
             }
             unknown => Err(format!("Unknown style: {}", unknown))?,
         }
-        rename(&temp_filename, &output_filename)?;
+        rename(&temp_filename, &output_filename)
+            .map_err(|e| format!("rename {} to {}: {}", temp_filename, output_filename, e))?;
         eprintln!("Wrote {}", output_filename);
     }
 

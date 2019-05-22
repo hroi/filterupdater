@@ -1,29 +1,28 @@
 use std::convert::TryFrom;
 use std::error;
-use std::fmt;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub enum Query<'a> {
+pub enum FilterClass<'a> {
     AsSet(&'a str),
     RouteSet(&'a str),
     AutNum(u32),
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct InvalidQuery(String);
+// #[derive(Debug, PartialEq, Eq)]
+// pub struct InvalidQuery(String);
 
-impl fmt::Display for InvalidQuery {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "invalid query: {:?}", self.0)
-    }
-}
+// impl fmt::Display for InvalidQuery {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         write!(f, "invalid query: {:?}", self.0)
+//     }
+// }
 
-impl error::Error for InvalidQuery {}
+// impl error::Error for InvalidQuery {}
 
-impl<'a> TryFrom<&'a str> for Query<'a> {
-    type Error = InvalidQuery;
+impl<'a> TryFrom<&'a str> for FilterClass<'a> {
+    type Error = Box<dyn error::Error>;
 
-    fn try_from(input: &'a str) -> Result<Query<'a>, InvalidQuery> {
+    fn try_from(input: &'a str) -> Result<FilterClass<'a>, Self::Error> {
         if input.contains(':') {
             // From RFC 2622:
             //   Set names can also be hierarchical.  A hierarchical set name is a
@@ -36,27 +35,27 @@ impl<'a> TryFrom<&'a str> for Query<'a> {
             let elems = input.split(':');
             for elem in elems {
                 match parse_name_component(elem) {
-                    Ok(Query::AutNum(_)) | Err(_) => continue,
-                    Ok(Query::AsSet(_)) => return Ok(Query::AsSet(input)),
-                    Ok(Query::RouteSet(_)) => return Ok(Query::RouteSet(input)),
+                    Ok(FilterClass::AutNum(_)) | Err(_) => continue,
+                    Ok(FilterClass::AsSet(_)) => return Ok(FilterClass::AsSet(input)),
+                    Ok(FilterClass::RouteSet(_)) => return Ok(FilterClass::RouteSet(input)),
                 }
             }
-            Err(InvalidQuery(input.to_string()))
+            Err(input.into())
         } else {
             parse_name_component(input)
         }
     }
 }
 
-fn parse_name_component(input: &str) -> Result<Query, InvalidQuery> {
+fn parse_name_component(input: &str) -> Result<FilterClass, Box<dyn error::Error>> {
     match input.get(0..3) {
-        Some(name) if name.eq_ignore_ascii_case("as-") => Ok(Query::AsSet(input)),
-        Some(name) if name.eq_ignore_ascii_case("rs-") => Ok(Query::RouteSet(input)),
+        Some(name) if name.eq_ignore_ascii_case("as-") => Ok(FilterClass::AsSet(input)),
+        Some(name) if name.eq_ignore_ascii_case("rs-") => Ok(FilterClass::RouteSet(input)),
         Some(name) if name[..2].eq_ignore_ascii_case("as") => input[2..]
             .parse::<u32>()
-            .map(Query::AutNum)
-            .map_err(|_| InvalidQuery(input.to_string())),
-        _ => Err(InvalidQuery(input.to_string())),
+            .map(FilterClass::AutNum)
+            .map_err(|_| input.into()),
+        _ => Err(input.into()),
     }
 }
 
@@ -83,8 +82,8 @@ mod tests {
                 .filter(|l| l.starts_with("route-set:"))
                 .for_each(|line| {
                     let name = line.split_whitespace().nth(1).unwrap();
-                    match Query::try_from(name).unwrap() {
-                        Query::RouteSet(_) => num_parsed += 1,
+                    match FilterClass::try_from(name).unwrap() {
+                        FilterClass::RouteSet(_) => num_parsed += 1,
                         _ => panic!(name.to_owned()),
                     }
                 });
@@ -103,8 +102,8 @@ mod tests {
                 .filter(|l| l.starts_with("as-set:"))
                 .for_each(|line| {
                     let name = line.split_whitespace().nth(1).unwrap();
-                    match Query::try_from(name).unwrap() {
-                        Query::AsSet(_) => num_parsed += 1,
+                    match FilterClass::try_from(name).unwrap() {
+                        FilterClass::AsSet(_) => num_parsed += 1,
                         _ => panic!(name.to_owned()),
                     }
                 });
