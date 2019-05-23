@@ -1,7 +1,6 @@
 use std::cmp::{max, min};
 use std::error::Error;
 use std::fmt;
-use std::mem;
 use std::net::IpAddr;
 use std::str::FromStr;
 
@@ -17,8 +16,8 @@ pub struct AggPrefix {
 }
 
 impl AggPrefix {
-    fn can_level_up_with(&self, other: &Self) -> bool {
-        let overlaps = match (self.prefix, other.prefix) {
+    fn can_consolidate_with(&self, other: &Self) -> bool {
+        let does_overlap = match (self.prefix, other.prefix) {
             (IpAddr::V4(a), IpAddr::V4(b)) => {
                 (u32::from(a) ^ u32::from(b)) == (1 << 31) >> (u32::from(self.mask) - 1)
             }
@@ -27,7 +26,7 @@ impl AggPrefix {
             }
             _ => false,
         };
-        overlaps && (self.min, self.max) == (other.min, other.max)
+        does_overlap && (self.min, self.max) == (other.min, other.max)
     }
 
     fn touches(&self, other: &Self) -> bool {
@@ -108,7 +107,7 @@ impl FromStr for AggPrefix {
     }
 }
 
-fn level_up(this: &mut Vec<AggPrefix>, next: &mut Vec<AggPrefix>) {
+fn consolidate(this: &mut Vec<AggPrefix>, next: &mut Vec<AggPrefix>) {
     let mut did_change = true;
     while did_change {
         did_change = false;
@@ -120,7 +119,7 @@ fn level_up(this: &mut Vec<AggPrefix>, next: &mut Vec<AggPrefix>) {
                 continue;
             }
             for b in this.iter_mut().filter(|e| e.valid) {
-                if a.can_level_up_with(b) {
+                if a.can_consolidate_with(b) {
                     let mut merged = a.clone();
                     merged.mask -= 1;
                     a.valid = false;
@@ -145,20 +144,19 @@ fn level_up(this: &mut Vec<AggPrefix>, next: &mut Vec<AggPrefix>) {
 }
 
 pub fn aggregate(prefixes: &[&Prefix]) -> Vec<AggPrefix> {
-    let prefixes: Vec<_> = prefixes.iter().map(|p| AggPrefix::from_prefix(p)).collect();
+    let prefixes: Vec<AggPrefix> = prefixes.iter().map(|p| AggPrefix::from_prefix(p)).collect();
     let mut levels = Vec::<Vec<AggPrefix>>::new();
     levels.resize_with(129, Default::default);
-    prefixes.iter().for_each(|prefix| {
-        levels[prefix.mask as usize].push(prefix.clone());
-    });
-    (1..=128).rev().for_each(|cur| {
-        let mut this = mem::replace(&mut levels[cur], vec![]);
-        let mut next = mem::replace(&mut levels[cur - 1], vec![]);
-
-        level_up(&mut this, &mut next);
-        mem::replace(&mut levels[cur], this);
-        mem::replace(&mut levels[cur - 1], next);
-    });
+    prefixes
+        .iter()
+        .for_each(|prefix| levels[prefix.mask as usize].push(prefix.clone()));
+    let mut view = &mut levels[..];
+    while let Some((this, rest)) = view.split_last_mut() {
+        if let Some(next) = rest.last_mut() {
+            consolidate(this, next);
+        }
+        view = rest;
+    }
     levels
         .into_iter()
         .flat_map(IntoIterator::into_iter)
