@@ -1,6 +1,5 @@
 use std::cmp::{max, min};
 use std::error::Error;
-use std::fmt;
 use std::net::IpAddr;
 use std::str::FromStr;
 
@@ -12,7 +11,7 @@ pub struct AggPrefix {
     pub mask: u8,
     pub min: u8,
     pub max: u8,
-    valid: bool,
+    pub valid: bool,
 }
 
 impl AggPrefix {
@@ -59,29 +58,6 @@ impl AggPrefix {
             min: *masklen,
             max: *masklen,
             valid: true,
-        }
-    }
-
-    pub fn fmt_cisco(&self) -> FmtCiscoEntry {
-        FmtCiscoEntry(self)
-    }
-}
-
-pub struct FmtCiscoEntry<'a>(&'a AggPrefix);
-
-impl<'a> fmt::Display for FmtCiscoEntry<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.0.valid {
-            write!(f, "{}/{}", self.0.prefix, self.0.mask)?;
-            if self.0.mask != self.0.min {
-                write!(f, " ge {}", self.0.min)?;
-            }
-            if self.0.mask != self.0.max {
-                write!(f, " le {}", self.0.max)?;
-            }
-            Ok(())
-        } else {
-            write!(f, "INVALID")
         }
     }
 }
@@ -150,10 +126,10 @@ pub fn aggregate(prefixes: &[&Prefix]) -> Vec<AggPrefix> {
     prefixes
         .into_iter()
         .for_each(|p| levels[p.mask as usize].push(p));
-    let mut view = &mut levels[..];
-    while let Some((this, rest)) = view.split_last_mut() {
+    let mut view = levels.as_mut_slice();
+    while let Some((cur, rest)) = view.split_last_mut() {
         if let Some(next) = rest.last_mut() {
-            consolidate(this, next);
+            consolidate(cur, next);
         }
         view = rest;
     }

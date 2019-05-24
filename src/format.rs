@@ -4,20 +4,46 @@ use crate::aggregate::AggPrefix;
 
 pub struct CiscoPrefixList<'a>(pub &'a str, pub &'a str, pub &'a [AggPrefix]);
 pub struct CiscoPrefixSet<'a>(pub &'a str, pub &'a str, pub &'a [AggPrefix]);
+pub struct CiscoEntryFmt<'a>(&'a AggPrefix);
+
+impl<'a> fmt::Display for CiscoEntryFmt<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.0.valid {
+            write!(f, "{}/{}", self.0.prefix, self.0.mask)?;
+            if self.0.mask != self.0.min {
+                write!(f, " ge {}", self.0.min)?;
+            }
+            if self.0.mask != self.0.max {
+                write!(f, " le {}", self.0.max)?;
+            }
+            Ok(())
+        } else {
+            write!(f, "INVALID")
+        }
+    }
+}
 
 impl<'a> fmt::Display for CiscoPrefixList<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let (name, comment, list) = (self.0, self.1, self.2);
-        writeln!(f, "no ip prefix-list {}", name)?;
-        writeln!(f, "no ipv6 prefix-list {}", name)?;
-        writeln!(f, "ip prefix-list {} description {}", name, comment)?;
-        writeln!(f, "ipv6 prefix-list {} description {}", name, comment)?;
+        writeln!(
+            f,
+            "no ip prefix-list {name}\n\
+             ip prefix-list {name} description {comment}\n\
+             no ipv6 prefix-list {name}\n\
+             ipv6 prefix-list {name} description {comment}",
+            name = name,
+            comment = comment,
+        )?;
         for prefix in list.iter() {
-            if prefix.prefix.is_ipv4() {
-                writeln!(f, "ip prefix-list {} permit {}", name, prefix.fmt_cisco())?;
+            assert!(prefix.valid);
+            let family = if prefix.prefix.is_ipv4() {
+                "ip"
             } else {
-                writeln!(f, "ipv6 prefix-list {} permit {}", name, prefix.fmt_cisco())?;
-            }
+                "ipv6"
+            };
+            let prefix = CiscoEntryFmt(prefix);
+            writeln!(f, "{} prefix-list {} permit {}", family, name, prefix)?;
         }
         Ok(())
     }
@@ -29,7 +55,7 @@ impl<'a> fmt::Display for CiscoPrefixSet<'a> {
         writeln!(f, "no prefix-set {}", name)?;
         writeln!(f, "prefix-set {}\n # {}", name, comment)?;
         let mut first = true;
-        for prefix in list.iter().map(AggPrefix::fmt_cisco) {
+        for prefix in list.iter().map(CiscoEntryFmt) {
             if first {
                 write!(f, " {}", prefix)?;
                 first = false;

@@ -155,7 +155,7 @@ fn run() -> AppResult<()> {
     filters.iter().for_each(|filter_name| {
         let mut prefix_set: Set<Prefix> = Default::default();
 
-        match FilterClass::try_from(*filter_name).unwrap() {
+        match FilterClass::try_from(*filter_name).expect("BUG: invalid filter") {
             FilterClass::AsSet(name) => {
                 prefix_set.extend(
                     as_set_members[name]
