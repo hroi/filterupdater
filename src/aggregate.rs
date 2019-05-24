@@ -152,7 +152,9 @@ pub fn aggregate(prefixes: &[&Prefix]) -> Vec<AggPrefix> {
         .for_each(|p| levels[p.mask as usize].push(p));
     let mut view = &mut levels[..];
     while let Some((this, rest)) = view.split_last_mut() {
-        rest.last_mut().map(|next| consolidate(this, next));
+        if let Some(next) = rest.last_mut() {
+            consolidate(this, next);
+        }
         view = rest;
     }
     levels
