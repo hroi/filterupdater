@@ -8,17 +8,6 @@ pub enum FilterClass<'a> {
     AutNum(u32),
 }
 
-// #[derive(Debug, PartialEq, Eq)]
-// pub struct InvalidQuery(String);
-
-// impl fmt::Display for InvalidQuery {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         write!(f, "invalid query: {:?}", self.0)
-//     }
-// }
-
-// impl error::Error for InvalidQuery {}
-
 impl<'a> TryFrom<&'a str> for FilterClass<'a> {
     type Error = Box<dyn error::Error>;
 

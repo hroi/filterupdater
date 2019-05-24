@@ -11,7 +11,8 @@ use std::process::exit;
 use fup::aggregate::{aggregate, AggPrefix};
 use fup::filterclass::FilterClass;
 use fup::format::{CiscoPrefixList, CiscoPrefixSet};
-use fup::{radb, AppResult, Map, Prefix, Set};
+use fup::radb::RadbClient;
+use fup::{AppResult, Map, Prefix, Set};
 use serde_derive::Deserialize;
 use time;
 use toml;
@@ -104,26 +105,26 @@ fn run() -> AppResult<()> {
         "{} version {} ({})",
         fup::CLIENT,
         fup::VERSION,
-        fup::GIT_HASH.unwrap_or("unknown")
+        fup::GIT_HASH.unwrap_or("unknown"),
     );
-    let mut client = radb::RadbClient::open(
+    let mut client = RadbClient::open(
         &root_config.global.server,
         &root_config.global.sources.join(","),
     )
     .map_err(|e| format!("failed to connect to {}: {}", &root_config.global.server, e))?;
     eprintln!("Connected to {}.", client.peer_addr()?);
 
+    let route_set_prefixes = client
+        .resolve_route_sets(&route_set_queries)
+        .map_err(|e| format!("failed to resolve route-sets: {}", e))?;
     let as_set_members = client
         .resolve_as_sets(&as_set_queries)
         .map_err(|e| format!("failed to resolve as-sets: {}", e))?;
     autnum_queries.extend(as_set_members.values().flatten());
-
-    let route_set_prefixes = client
-        .resolve_route_sets(&route_set_queries)
-        .map_err(|e| format!("failed to resolve route-sets: {}", e))?;
     let autnum_prefixes = client
         .resolve_autnums(&autnum_queries)
         .map_err(|e| format!("failed to resolve autnums: {}", e))?;
+
     let elapsed = time::SteadyTime::now() - start_time;
     eprintln!(
         "{} objects downloaded in {:.2} s.",

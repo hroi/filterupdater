@@ -87,7 +87,7 @@ impl<'a> fmt::Display for FmtCiscoEntry<'a> {
 }
 
 impl FromStr for AggPrefix {
-    type Err = Box<Error>;
+    type Err = Box<dyn Error>;
 
     fn from_str(s: &str) -> Result<AggPrefix, Self::Err> {
         let mut elems = s.split('/');
@@ -107,36 +107,36 @@ impl FromStr for AggPrefix {
     }
 }
 
-fn consolidate(this: &mut Vec<AggPrefix>, next: &mut Vec<AggPrefix>) {
+fn consolidate(level: &mut Vec<AggPrefix>, level_below: &mut Vec<AggPrefix>) {
     let mut did_change = true;
     while did_change {
         did_change = false;
-        this.sort_unstable();
-        let mut this = &mut this[..];
-        while let Some((a, rest)) = this.split_first_mut() {
-            this = rest;
-            if !a.valid {
-                continue;
-            }
-            for b in this.iter_mut().filter(|e| e.valid) {
-                if a.can_consolidate_with(b) {
-                    let mut merged = a.clone();
-                    merged.mask -= 1;
-                    a.valid = false;
-                    b.valid = false;
-                    next.push(merged);
-                    did_change = true;
-                    continue;
-                }
-                if (a.prefix, a.mask, a.min + 1) == (b.prefix, b.mask, b.min) {
-                    a.min = min(a.min, b.min);
-                    a.max = max(a.max, b.max);
-                    b.valid = false;
-                    did_change = true;
-                    continue;
-                }
-                if !a.touches(b) {
-                    break;
+        level.sort_unstable();
+        let mut slice = level.as_mut_slice();
+        while let Some((first, rest)) = slice.split_first_mut() {
+            slice = rest;
+            if first.valid {
+                for prefix in slice.iter_mut().filter(|p| p.valid) {
+                    if first.can_consolidate_with(prefix) {
+                        // {192.0.2.0/24 , 192.0.3.0/24} -> {192.0.2.0/23 le 24}
+                        let mut merged = first.clone();
+                        merged.mask -= 1;
+                        first.valid = false;
+                        prefix.valid = false;
+                        level_below.push(merged);
+                        did_change = true;
+                    } else if (first.prefix, first.mask, first.min + 1)
+                        == (prefix.prefix, prefix.mask, prefix.min)
+                    {
+                        // {192.0.2.0/23 ge 24 le 24, 192.0.2.0/23 ge 25 le 25} -> {192.0.2.0/23 ge 24 le 25}
+                        first.min = min(first.min, prefix.min);
+                        first.max = max(first.max, prefix.max);
+                        prefix.valid = false;
+                        did_change = true;
+                    } else if !first.touches(prefix) {
+                        // {192.0.2.0/23 , 198.51.100.0/24}
+                        break;
+                    }
                 }
             }
         }
@@ -146,15 +146,13 @@ fn consolidate(this: &mut Vec<AggPrefix>, next: &mut Vec<AggPrefix>) {
 pub fn aggregate(prefixes: &[&Prefix]) -> Vec<AggPrefix> {
     let prefixes: Vec<AggPrefix> = prefixes.iter().map(|p| AggPrefix::from_prefix(p)).collect();
     let mut levels = Vec::<Vec<AggPrefix>>::new();
-    levels.resize_with(129, Default::default);
+    levels.resize_with(129, Vec::new);
     prefixes
-        .iter()
-        .for_each(|prefix| levels[prefix.mask as usize].push(prefix.clone()));
+        .into_iter()
+        .for_each(|p| levels[p.mask as usize].push(p));
     let mut view = &mut levels[..];
     while let Some((this, rest)) = view.split_last_mut() {
-        if let Some(next) = rest.last_mut() {
-            consolidate(this, next);
-        }
+        rest.last_mut().map(|next| consolidate(this, next));
         view = rest;
     }
     levels
