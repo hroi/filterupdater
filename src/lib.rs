@@ -2,7 +2,7 @@
 pub mod aggregate;
 pub mod filterclass;
 pub mod format;
-pub mod radb;
+pub mod irr;
 
 #[cfg(feature = "hashbrown")]
 pub(crate) use hashbrown::{HashMap, HashSet};

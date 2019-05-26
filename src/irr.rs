@@ -6,19 +6,19 @@ use std::time::Duration;
 use crate::{AppResult, Map, Prefix, Set};
 use bufstream::BufStream;
 
-/// RADB client.
+/// IRR client.
 ///
 /// Protocol docs:
-///  * https://www.radb.net/support/tutorials/query-options-flags.html
+///  * https://github.com/irrdnet/irrd/blob/master/src/programs/IRRd/COMMANDS.INFO
 ///  * https://github.com/irrdnet/irrd/blob/master/irrd-user.pdf
-pub struct RadbClient {
+pub struct IrrClient {
     stream: BufStream<TcpStream>,
     buf: Vec<u8>,
 }
 
 const TIMEOUT: Duration = Duration::from_secs(30);
 
-impl RadbClient {
+impl IrrClient {
     pub fn open<S: ToSocketAddrs>(target: S, sources: &str) -> AppResult<Self> {
         let mut err: io::Error = Error::new(Other, "no address for host");
         for sock_addr in target.to_socket_addrs()? {
@@ -26,7 +26,7 @@ impl RadbClient {
                 Ok(conn) => {
                     conn.set_read_timeout(Some(TIMEOUT))?;
                     conn.set_write_timeout(Some(TIMEOUT))?;
-                    let mut client = RadbClient {
+                    let mut client = IrrClient {
                         stream: BufStream::new(conn),
                         buf: Vec::with_capacity(4096),
                     };
@@ -188,7 +188,7 @@ impl RadbClient {
     }
 }
 
-impl Drop for RadbClient {
+impl Drop for IrrClient {
     fn drop(&mut self) {
         self.stream.write_all(b"!q\n").ok();
     }

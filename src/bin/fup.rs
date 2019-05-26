@@ -11,7 +11,7 @@ use std::process::exit;
 use fup::aggregate::{aggregate, AggPrefix};
 use fup::filterclass::FilterClass;
 use fup::format::{CiscoPrefixList, CiscoPrefixSet};
-use fup::radb::RadbClient;
+use fup::irr::IrrClient;
 use fup::{AppResult, Map, Prefix, Set};
 use serde_derive::Deserialize;
 use time;
@@ -25,20 +25,29 @@ struct RootConfig {
 
 #[derive(Debug, Deserialize)]
 struct GlobalConfig {
+    /// irrd server name
     server: String,
+    /// where to put the outputted configuration files
     outputdir: String,
+    /// whether to aggregate prefixes
     aggregate: Option<bool>,
+    /// whether to put a timestamp into the outputted configuration files
     timestamps: Option<bool>,
-    // radb,afrinic,ripe,ripe-nonauth,bell,apnic,nttcom,altdb,panix,risq,
-    // nestegg,level3,reach,aoltw,openface,arin,easynet,jpirr,host,rgnet,
-    // rogers,bboi,tc,canarie
+    /// which source databases to use
+    /// some choices are: radb,afrinic,ripe,ripe-nonauth,bell,apnic,nttcom,
+    /// altdb,panix,risq,nestegg,level3,reach,aoltw,openface,arin,easynet,
+    /// jpirr,host,rgnet,rogers,bboi,tc,canarie
     sources: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct RouterConfig {
     hostname: String,
+    /// Style of configuation
+    ///  - "prefix-set" (XR)
+    ///  - "prefix-list" (IOS)
     style: String,
+    /// Relevant names of filters for this router
     filters: Vec<String>,
 }
 
@@ -107,7 +116,7 @@ fn run() -> AppResult<()> {
         fup::VERSION,
         fup::GIT_HASH.unwrap_or("unknown"),
     );
-    let mut client = RadbClient::open(
+    let mut client = IrrClient::open(
         &root_config.global.server,
         &root_config.global.sources.join(","),
     )
@@ -152,10 +161,10 @@ fn run() -> AppResult<()> {
 
     let mut agg_count = 0;
     let mut nonagg_count = 0;
-    filters.iter().for_each(|filter_name| {
+    filters.into_iter().for_each(|filter_name| {
         let mut prefix_set: Set<Prefix> = Default::default();
 
-        match FilterClass::try_from(*filter_name).expect("BUG: invalid filter") {
+        match FilterClass::try_from(filter_name).expect("BUG: invalid filter") {
             FilterClass::AsSet(name) => {
                 prefix_set.extend(
                     as_set_members[name]

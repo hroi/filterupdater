@@ -1,4 +1,4 @@
-use std::fmt;
+use std::fmt::{Display, Formatter, Result};
 
 use crate::aggregate::AggPrefix;
 
@@ -6,8 +6,8 @@ pub struct CiscoPrefixList<'a>(pub &'a str, pub &'a str, pub &'a [AggPrefix]);
 pub struct CiscoPrefixSet<'a>(pub &'a str, pub &'a str, pub &'a [AggPrefix]);
 pub struct CiscoEntryFmt<'a>(&'a AggPrefix);
 
-impl<'a> fmt::Display for CiscoEntryFmt<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl<'a> Display for CiscoEntryFmt<'a> {
+    fn fmt(&self, f: &mut Formatter) -> Result {
         if self.0.valid {
             write!(f, "{}/{}", self.0.prefix, self.0.mask)?;
             if self.0.mask != self.0.min {
@@ -23,8 +23,8 @@ impl<'a> fmt::Display for CiscoEntryFmt<'a> {
     }
 }
 
-impl<'a> fmt::Display for CiscoPrefixList<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl<'a> Display for CiscoPrefixList<'a> {
+    fn fmt(&self, f: &mut Formatter) -> Result {
         let (name, comment, list) = (self.0, self.1, self.2);
         writeln!(
             f,
@@ -49,8 +49,8 @@ impl<'a> fmt::Display for CiscoPrefixList<'a> {
     }
 }
 
-impl<'a> fmt::Display for CiscoPrefixSet<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl<'a> Display for CiscoPrefixSet<'a> {
+    fn fmt(&self, f: &mut Formatter) -> Result {
         let (name, comment, list) = (self.0, self.1, self.2);
         writeln!(f, "no prefix-set {}", name)?;
         writeln!(f, "prefix-set {}\n # {}", name, comment)?;
