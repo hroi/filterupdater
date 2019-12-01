@@ -1,7 +1,8 @@
-use std::io::prelude::*;
-use std::io::{self, Error, ErrorKind::*};
-use std::net::{Shutdown, SocketAddr, TcpStream, ToSocketAddrs};
-use std::time::Duration;
+use std::{
+    io::{self, prelude::*, Error, ErrorKind::*},
+    net::{Shutdown, SocketAddr, TcpStream, ToSocketAddrs},
+    time::Duration,
+};
 
 use crate::{AppResult, Map, Prefix, Set};
 use bufstream::BufStream;

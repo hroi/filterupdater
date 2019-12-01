@@ -1,18 +1,21 @@
 #![forbid(unsafe_code)]
 
-use std::convert::TryFrom;
-use std::env;
-use std::error;
-use std::fs::{create_dir_all, rename, File};
-use std::io::prelude::*;
-use std::path::Path;
-use std::process::exit;
+use std::{
+    convert::TryFrom,
+    env, error,
+    fs::{create_dir_all, rename, File},
+    io::prelude::*,
+    path::Path,
+    process::exit,
+};
 
-use fup::aggregate::{aggregate, AggPrefix};
-use fup::filterclass::FilterClass;
-use fup::format::{CiscoPrefixList, CiscoPrefixSet};
-use fup::irr::IrrClient;
-use fup::{AppResult, Map, Prefix, Set};
+use fup::{
+    aggregate::{aggregate, AggPrefix},
+    filterclass::FilterClass,
+    format::{CiscoPrefixList, CiscoPrefixSet},
+    irr::IrrClient,
+    AppResult, Map, Prefix, Set,
+};
 use serde_derive::Deserialize;
 use time;
 use toml;

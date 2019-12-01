@@ -1,5 +1,4 @@
-use std::convert::TryFrom;
-use std::error;
+use std::{convert::TryFrom, error};
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum FilterClass<'a> {
@@ -55,9 +54,10 @@ mod tests {
     mod realworld {
         use super::*;
         use filterclass::*;
-        use std::fs::File;
-        use std::io::prelude::*;
-        use std::io::BufReader;
+        use std::{
+            fs::File,
+            io::{prelude::*, BufReader},
+        };
 
         #[test]
         #[ignore]

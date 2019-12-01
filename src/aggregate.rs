@@ -1,7 +1,9 @@
-use std::cmp::{max, min};
-use std::error::Error;
-use std::net::IpAddr;
-use std::str::FromStr;
+use std::{
+    cmp::{max, min},
+    error::Error,
+    net::IpAddr,
+    str::FromStr,
+};
 
 use crate::Prefix;
 
