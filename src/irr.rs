@@ -94,14 +94,17 @@ impl IrrClient {
                 Some((b'F', data)) => {
                     return Err(Error::new(Other, String::from_utf8_lossy(data)).into());
                 }
-                Some((code, data)) => Err(Error::new(
-                    InvalidData,
-                    format!(
-                        "invalid reply: {:?} => {:?}",
-                        char::from(**code),
-                        String::from_utf8_lossy(data)
-                    ),
-                ))?,
+                Some((code, data)) => {
+                    return Err(Error::new(
+                        InvalidData,
+                        format!(
+                            "invalid reply: {:?} => {:?}",
+                            char::from(**code),
+                            String::from_utf8_lossy(data)
+                        ),
+                    )
+                    .into())
+                }
                 None => {
                     return Err(Error::new(Other, "short reply").into());
                 }
@@ -123,10 +126,9 @@ impl IrrClient {
             let autnums = ret.entry(set).or_insert_with(|| vec![]);
             if let Some(reply) = self.read_reply()? {
                 for autnum in reply.split_whitespace().map(|s| parse_autnum(s)) {
-                    let autnum = autnum?;
-                    match autnum {
-                        // invalid as'es
-                        0 | 23_456 | 64_496...65_535 | 4_200_000_000...4_294_967_294 => continue,
+                    match autnum? {
+                        // skip invalid/private AS numbers
+                        0 | 23_456 | 64_496..=65_535 | 4_200_000_000..=4_294_967_294 => continue,
                         valid => autnums.push(valid),
                     }
                 }

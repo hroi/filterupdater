@@ -52,8 +52,13 @@ impl<'a> Display for CiscoPrefixList<'a> {
 impl<'a> Display for CiscoPrefixSet<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         let (name, comment, list) = (self.0, self.1, self.2);
-        writeln!(f, "no prefix-set {}", name)?;
-        writeln!(f, "prefix-set {}\n # {}", name, comment)?;
+        writeln!(
+            f,
+            "no prefix-set {name}\n\
+             prefix-set {name}\n # {comment}",
+            name = name,
+            comment = comment
+        )?;
         let mut first = true;
         for prefix in list.iter().map(CiscoEntryFmt) {
             if first {

@@ -149,7 +149,7 @@ fn run() -> AppResult<()> {
         let target = match r.style.as_str() {
             "prefix-set" => &mut prefix_set_configs,
             "prefix-list" => &mut prefix_list_configs,
-            style => Err(format!("Unknow output style {}", style))?,
+            style => return Err(format!("Unknow output style {}", style).into()),
         };
         iter.for_each(|f| {
             target.entry(f).or_default();
@@ -254,7 +254,7 @@ fn run() -> AppResult<()> {
                 writeln!(&mut output_file, "end")
                     .map_err(|e| format!("failed to write to output file: {}", e))?;
             }
-            unknown => Err(format!("Unknown style: {}", unknown))?,
+            unknown => return Err(format!("Unknown style: {}", unknown).into()),
         }
         rename(&temp_filename, &output_filename)
             .map_err(|e| format!("rename {} to {}: {}", temp_filename, output_filename, e))?;
