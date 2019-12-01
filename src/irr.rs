@@ -1,6 +1,6 @@
 use std::io::prelude::*;
 use std::io::{self, Error, ErrorKind::*};
-use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
+use std::net::{Shutdown, SocketAddr, TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
 use crate::{AppResult, Map, Prefix, Set};
@@ -48,6 +48,14 @@ impl IrrClient {
             }
         }
         Err(err.into())
+    }
+
+    pub fn close(&mut self) -> io::Result<()> {
+        dbg!("close");
+        dbg!({
+            self.stream.write_all(b"!q\n")?;
+            self.stream.get_ref().shutdown(Shutdown::Both)
+        })
     }
 
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
@@ -192,7 +200,7 @@ impl IrrClient {
 
 impl Drop for IrrClient {
     fn drop(&mut self) {
-        self.stream.write_all(b"!q\n").ok();
+        self.close().ok();
     }
 }
 
