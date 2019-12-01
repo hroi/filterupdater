@@ -52,11 +52,8 @@ impl IrrClient {
     }
 
     pub fn close(&mut self) -> io::Result<()> {
-        dbg!("close");
-        dbg!({
-            self.stream.write_all(b"!q\n")?;
-            self.stream.get_ref().shutdown(Shutdown::Both)
-        })
+        self.stream.write_all(b"!q\n")?;
+        self.stream.get_ref().shutdown(Shutdown::Both)
     }
 
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
