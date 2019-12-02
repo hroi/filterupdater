@@ -113,12 +113,7 @@ fn run() -> AppResult<()> {
     });
 
     let start_time = time::SteadyTime::now();
-    eprintln!(
-        "{} version {} ({})",
-        fup::CLIENT,
-        fup::VERSION,
-        fup::GIT_HASH.unwrap_or("unknown"),
-    );
+    eprintln!("{} version {}", fup::CLIENT, fup::VERSION);
     let mut client = IrrClient::open(
         &root_config.global.server,
         &root_config.global.sources.join(","),

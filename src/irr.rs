@@ -31,18 +31,13 @@ impl IrrClient {
                         stream: BufStream::new(conn),
                         buf: Vec::with_capacity(4096),
                     };
-                    if let Some(hash) = crate::GIT_HASH {
-                        writeln!(
-                            client.stream,
-                            "!!\n!n{}-{}-{}",
-                            crate::CLIENT,
-                            crate::VERSION,
-                            &hash[..8]
-                        )
-                    } else {
-                        writeln!(client.stream, "!!\n!n{}-{}", crate::CLIENT, crate::VERSION,)
-                    }?;
-                    writeln!(client.stream, "!s{}", sources)?;
+                    writeln!(
+                        client.stream,
+                        "!!\n!n{}-{}\n!s{}",
+                        crate::CLIENT,
+                        crate::VERSION,
+                        sources
+                    )?;
                     return Ok(client);
                 }
                 Err(e) => err = e,

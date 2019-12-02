@@ -14,4 +14,3 @@ pub type AppResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 pub const CLIENT: &str = env!("CARGO_PKG_NAME");
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const GIT_HASH: Option<&str> = option_env!("GIT_HASH");
