@@ -4,9 +4,6 @@ pub mod filterclass;
 pub mod format;
 pub mod irr;
 
-#[cfg(feature = "hashbrown")]
-pub(crate) use hashbrown::{HashMap, HashSet};
-#[cfg(not(feature = "hashbrown"))]
 pub(crate) use std::collections::{HashMap, HashSet};
 
 pub type Map<K, V> = HashMap<K, V>;
