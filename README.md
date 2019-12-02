@@ -38,11 +38,10 @@ filters = [
 
 ## Example usage
 ```
-nocbox$ fup ./examples/config.toml
-fup version 0.7.1 (f2b36bcf5a37eca33106d10821ca7f248b1e6519)
+nocbox$ fup ./examples/telianet.toml
+fup version 0.7.1 (2bd7b0c70f5ce3f3ccbefa6d20922ab6ec504790)
 Connected to 198.108.0.18:43.
-4 objects downloaded in 0.51 s.
-Aggregated 109 prefixes into 41 entries.
+71271 objects downloaded in 10.09 s.
+Aggregated 1693814 prefixes into 355263 entries.
 Wrote ./output/xr-router.txt
-Wrote ./output/ios-router.txt
 ```
