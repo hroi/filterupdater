@@ -1,6 +1,6 @@
 [package]
 name = "fup"
-version = "0.7.4-alpha.0"
+version = "0.7.4"
 authors = ["Hroi Sigurdsson <hroi@asdf.dk>"]
 edition = "2018"
 repository = "https://github.com/hroi/filterupdater"
