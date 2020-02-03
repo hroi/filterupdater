@@ -198,7 +198,7 @@ impl Drop for IrrClient {
 }
 
 pub fn parse_autnum(input: &str) -> io::Result<u32> {
-    if input.starts_with("AS") {
+    if input.starts_with("AS") || input.starts_with("as") {
         input[2..].parse().map_err(|e| Error::new(InvalidData, e))
     } else {
         Err(Error::new(InvalidData, input))
