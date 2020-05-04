@@ -112,7 +112,7 @@ fn run() -> AppResult<()> {
         };
     });
 
-    let start_time = time::OffsetDateTime::now();
+    let start_time = time::OffsetDateTime::now_local();
     eprintln!("{} version {}", fup::CLIENT, fup::VERSION);
     let mut client = IrrClient::open(
         &root_config.global.server,
@@ -132,7 +132,7 @@ fn run() -> AppResult<()> {
         .resolve_autnums(&autnum_queries)
         .map_err(|e| format!("failed to resolve autnums: {}", e))?;
 
-    let elapsed = time::OffsetDateTime::now() - start_time;
+    let elapsed = time::OffsetDateTime::now_local() - start_time;
     eprintln!(
         "{} objects downloaded in {:.2} s.",
         as_set_queries.len() + route_set_queries.len() + autnum_queries.len(),
@@ -154,7 +154,7 @@ fn run() -> AppResult<()> {
         });
     }
 
-    let generated_at = time::OffsetDateTime::now();
+    let generated_at = time::OffsetDateTime::now_local();
 
     let mut agg_count = 0;
     let mut nonagg_count = 0;
