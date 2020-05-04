@@ -17,8 +17,6 @@ use fup::{
     AppResult, Map, Prefix, Set,
 };
 use serde_derive::Deserialize;
-use time;
-use toml;
 
 #[derive(Debug, Deserialize)]
 struct RootConfig {

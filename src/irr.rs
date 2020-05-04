@@ -124,7 +124,7 @@ impl IrrClient {
         }
         self.stream.flush()?;
         for set in iter.clone() {
-            let autnums = ret.entry(set).or_insert_with(|| vec![]);
+            let autnums = ret.entry(set).or_insert_with(Vec::new);
             if let Some(reply) = self.read_reply()? {
                 for autnum in reply.split_whitespace().map(|s| parse_autnum(s)) {
                     match autnum? {
@@ -149,7 +149,7 @@ impl IrrClient {
         }
         self.stream.flush()?;
         for set in iter.clone() {
-            let prefixlist = ret.entry(*set).or_insert_with(|| vec![]);
+            let prefixlist = ret.entry(*set).or_insert_with(Vec::new);
             if let Some(reply) = self.read_reply()? {
                 for elem in reply.split_whitespace() {
                     let prefix = parse_prefix(elem)?;
@@ -171,7 +171,7 @@ impl IrrClient {
         self.stream.flush()?;
 
         for autnum in iter.clone() {
-            let prefixlist = ret.entry(*autnum).or_insert_with(|| vec![]);
+            let prefixlist = ret.entry(*autnum).or_insert_with(Vec::new);
             for family in &[4, 6] {
                 if let Some(reply) = self.read_reply()? {
                     for elem in reply.split_whitespace() {
