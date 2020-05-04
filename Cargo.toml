@@ -7,8 +7,8 @@ repository = "https://github.com/hroi/filterupdater"
 license = "MIT"
 readme = "README.md"
 description = "Simple bgpq3 alternative in Rust. Generates prefix-lists/sets for Cisco routers using IRR data."
-keywords = ["bgp", "cidr"]
-categories = ["command-line-utilities", "networking"]
+keywords = ["bgp", "cidr", "radb", "cisco"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 bufstream = "0.1"
